@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VS Admin Portal</title>
+  <link rel="stylesheet" href="admin.css" />
+  <script src="config.js" defer></script>
+  <script src="checkAuth.js" defer></script>
+  <style>
+    body {
+      background-color: #121212;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: white;
+      margin: 0;
+      padding: 40px;
+    }
+
+    .utility-container {
+      background: #1e1e1e;
+      max-width: 800px;
+      margin: auto;
+      border-radius: 20px;
+      padding: 40px 30px;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.05);
+      text-align: center;
+    }
+
+    .utility-title {
+      font-size: 32px;
+      font-weight: bold;
+      margin-bottom: 30px;
+    }
+
+    .utility-buttons {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .utility-button {
+      padding: 18px;
+      font-size: 18px;
+      font-weight: bold;
+      color: #FFD700;
+      background-color: #2a2a2a;
+      border: 2px solid #444;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: 0.2s ease-in-out;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    .utility-button:hover {
+      background-color: #393939;
+      border-color: #fff;
+      transform: scale(1.05);
+    }
+
+    .loader-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      color: white;
+      font-size: 18px;
+    }
+
+    .loader {
+      border: 8px solid #f3f3f3;
+      border-top: 8px solid #3498db;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 600px) {
+      .utility-buttons {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="utility-container">
+    <h2 class="utility-title">⚙️ Admin Utilities</h2>
+    <div class="utility-buttons">
+      <a id="calcLink" class="utility-button">🧮 Calculator</a>
+      <a id="cmsLink" class="utility-button">🎯 Build Campaigns</a>
+      <a id="distributeLink" class="utility-button">📦 Distribution</a>
+      <a id="refundLink" class="utility-button">💸 Refund</a>
+      <a id="flushWallets" class="utility-button">💥 Flush Wallets <small id="flushCount">Loading...</small></a>
+      <a id="airdropLink" class="utility-button">🎁 Airdrop</a>
+      <a id="buyLink" class="utility-button">🛍️ Buy $VS</a>
+      <a id="venmoPayoutsLink" class="utility-button">💰 Refunds via Venmo Payouts</a>
+      <a id="reconcileLink" class="utility-button">🧾 Reconcile VSChips</a>
+      <a id="productLink" class="utility-button">🛒 Manage Products</a>
+      <a id="lootCrateLink" class="utility-button">🧰 Loot Crates</a>
+      <a id="externalPointsLink" class="utility-button">➕ Add External Points</a>
+      <a href="#" class="utility-button" onclick="logout()">🚪 Logout</a>
+    </div>
+  </div>
+
+  <div id="loaderOverlay" class="loader-overlay">
+    <div class="loader"></div>
+    <p>Flushing wallets... Please wait</p>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", async function () {
+      console.log("✅ Admin page loaded");
+
+      const token = getToken?.();
+      if (!token) {
+        checkAuth?.();
+        throw new Error("❌ Authentication required.");
+      }
+
+      try {
+        const responseCount = await fetch(`${API_BASE_URL}/flush-wallet-count`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          }
+        });
+
+        const data = await responseCount.json();
+        document.getElementById("flushCount").innerText = responseCount.ok ? data.wallets_to_flush : "Error";
+      } catch (err) {
+        console.error("Error fetching flush count:", err);
+        document.getElementById("flushCount").innerText = "Error";
+      }
+
+      const flushBtn = document.getElementById("flushWallets");
+      if (flushBtn) {
+        flushBtn.addEventListener("click", async function () {
+          document.getElementById("loaderOverlay").style.display = "flex";
+          try {
+            const responseFlush = await fetch(`${API_BASE_URL}/flush-wallet`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+              }
+            });
+
+            if (responseFlush.ok) {
+              alert("✅ Wallets flushed successfully.");
+              const refreshedResponse = await fetch(`${API_BASE_URL}/flush-wallet-count`, {
+                method: "GET",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${token}`
+                }
+              });
+              const refreshedData = await refreshedResponse.json();
+              document.getElementById("flushCount").innerText = refreshedData.wallets_to_flush;
+            } else {
+              alert("❌ Failed to flush wallets.");
+            }
+          } catch (error) {
+            alert("❌ Error during flush operation.");
+            console.error(error);
+          } finally {
+            document.getElementById("loaderOverlay").style.display = "none";
+          }
+        });
+      }
+
+      // ✅ Set working button links
+      document.getElementById("calcLink").href = BASE_URL + "/admin/vs.html";
+      document.getElementById("cmsLink").href = BASE_URL + "/admin/cms.html";
+      document.getElementById("distributeLink").href = BASE_URL + "/admin/distribute.html";
+      document.getElementById("refundLink").href = BASE_URL + "/admin/refund.html";
+      document.getElementById("airdropLink").href = BASE_URL + "/admin/airdrop.html";
+      document.getElementById("buyLink").href = BASE_URL + "/admin/buyit.html";
+      document.getElementById("venmoPayoutsLink").href = BASE_URL + "/admin/venmo-payouts.html";
+      document.getElementById("productLink").href = BASE_URL + "/admin/add-product.html";
+      document.getElementById("lootCrateLink").href = BASE_URL + "/admin/add-lootcrate.html";
+      document.getElementById("reconcileLink").href = BASE_URL + "/admin/reconcile.html";
+      document.getElementById("externalPointsLink").href = BASE_URL + "/admin/external-points.html";
+    });
+  </script>
+</body>
+</html>
+

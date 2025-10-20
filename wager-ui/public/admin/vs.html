@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solana to $VS Calculator</title>
+  <link rel="stylesheet" href="vs.css">
+  <script src="config.js" defer></script> <!-- ✅ Load Global Config -->
+    <script src="checkAuth.js" defer></script> <!-- ✅ Load Global Config -->
+
+</head>
+
+<body>
+
+  <!-- ✅ Admin Portal Button -->
+  <div class="top-bar" style="display: flex;gap: 15px;align-items: center;">
+    <button class="admin-btn" onclick="adminUrl()">Admin
+      Portal</button>
+    <button class="admin-btn" onclick="logout()">Logout</button>
+  </div>
+
+  <h1>$VS Calculator</h1>
+  <p id="solanaPrice" style="color: green; font-weight: bold;"></p>
+  <!-- ✅ Admin Portal Button -->
+
+  <form id="multiplicationForm">
+    <label>Calculation Mode:</label>
+    <select id="calculationMode">
+      <option value="sol">Solana</option>
+      <option value="usdc">USDC</option>
+    </select>
+    <div class="radios">
+      <div style="font-weight: bold; margin-bottom: 8px;">Marketcap:</div>
+      <label><input type="radio" name="marketcap" value="350"> 350k</label>
+      <label><input type="radio" name="marketcap" value="600"> 600k</label>
+      <label><input type="radio" name="marketcap" value="800" checked> 800k</label>
+      <label><input type="radio" name="marketcap" value="1000"> 1M</label>
+      <label><input type="radio" name="marketcap" value="2000"> 2M</label>
+      <label><input type="radio" name="marketcap" value="3000"> 3M</label>
+      <label><input type="radio" name="marketcap" value="5000"> 5M</label>
+    </div>
+
+
+    <label>Price:</label>
+    <p id="priceLabel" style="font-weight: bold; margin-bottom: 15px;">Calculating...</p>
+
+    <label for="field1">Amount Received:</label>
+    <input type="number" id="field1" required step="any" placeholder="Enter amount received">
+
+    <label for="field2">Wallet:</label>
+    <input type="text" id="field2" required placeholder="Enter wallet address">
+    <button type="button" onclick="showVerificationPopup()">Submit</button>
+  </form>
+
+  <div class="result" id="result"></div>
+  <script>
+
+    async function fetchSolanaPrice() {
+      try {
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana,usd-coin&vs_currencies=usd');
+        const data = await response.json();
+        const solPrice = data.solana.usd;
+        const usdcPrice = data['usd-coin'].usd;
+        document.getElementById('solanaPrice').innerText = `Current Solana Price: $${solPrice.toFixed(2)} USD | Current USDC Price: $${usdcPrice.toFixed(2)} USD`;
+        return { solPrice, usdcPrice };
+      } catch (error) {
+        console.error('Error fetching prices:', error);
+        document.getElementById('solanaPrice').innerText = 'Error fetching prices';
+        return null;
+      }
+    }
+
+    function updatePriceLabel() {
+      const marketcap = parseFloat(document.querySelector('input[name="marketcap"]:checked').value) * 1000;
+      const price = marketcap / 100000000000;
+      document.getElementById('priceLabel').innerText = price.toFixed(9);
+      return price;
+    }
+
+    async function calculateMultiplication() {
+      const prices = await fetchSolanaPrice();
+      if (!prices) return;
+
+      const field1 = parseFloat(document.getElementById('field1').value);
+      const field2 = document.getElementById('field2').value;
+      const marketcap = parseFloat(document.querySelector('input[name="marketcap"]:checked').value) * 1000;
+      const price = marketcap / 100000000000;
+
+      const calculationMode = document.getElementById('calculationMode').value;
+      const currentPrice = calculationMode === 'sol' ? prices.solPrice : prices.usdcPrice;
+
+      if (isNaN(field1) || !field2) {
+        document.getElementById('result').innerText = 'Please fill all required fields with valid data.';
+        return;
+      }
+
+      let result;
+      if (calculationMode === 'sol') {
+        result = (field1 * currentPrice) / price;
+      } else {
+        result = field1 / price;
+      }
+
+      document.getElementById('result').innerText = `Please Send: ${result.toFixed(2)} $VS (${calculationMode.toUpperCase()})`;
+    }
+
+    function showVerificationPopup() {
+      const userConfirmed = confirm('PLEASE verify the Market Cap');
+      if (userConfirmed) {
+        calculateMultiplication();
+      } else {
+        document.getElementById('result').innerText = 'Calculation cancelled.';
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+
+      // Fetch prices and initialize calculations on page load
+      fetchSolanaPrice();
+      updatePriceLabel();
+
+      // Update price label when marketcap changes
+      document.querySelectorAll('input[name="marketcap"]').forEach((radio) => {
+        radio.addEventListener('change', updatePriceLabel);
+      });
+    })
+
+  </script>
+</body>
+
+</html>

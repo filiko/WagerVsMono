@@ -1,0 +1,275 @@
+/* 🌑 Dark Mode Background */
+body {
+    background-color: #12181f;  /* Dark navy */
+    color: #ffffff;
+    font-family: "Poppins", Arial, sans-serif; /* Modern font */
+}
+
+/* ✅ Header - TradeZero Style */
+.header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background-color: #0d1117; /* Dark navy */
+    color: #ffffff;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Balanced layout */
+    flex-wrap: wrap;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+/* ✅ Wallet Info (Left) */
+.header-left {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    font-size: 16px;
+    font-weight: bold;
+    margin-left: 20px;
+}
+
+/* ✅ Centered Title */
+.header-center {
+    flex-grow: 1;
+    text-align: center;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+/* ✅ Header Title - Green "VS" */
+.header-title {
+    font-size: 30px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.header-title span {
+    color: #3ddc97; /* TradeZero Green */
+}
+
+/* ✅ Connect Button (Right) */
+.header-right {
+    margin-right: 20px;
+}
+
+/* ✅ Smaller Connect Button */
+.connect-btn {
+    background-color: #3ddc97;
+    color: #12181f;
+    padding: 6px 12px;  /* Reduced size */
+    font-size: 14px;  /* Smaller font */
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.3s ease, transform 0.1s;
+}
+
+.connect-btn:hover {
+    background-color: #2bb673;
+    transform: scale(1.05);
+}
+
+/* ✅ Campaigns Container */
+#campaignsContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 20px;
+}
+
+/* ✅ Campaign Cards - Consistent Size */
+.campaign-content {
+    width: 90%;
+    max-width: 600px;
+    background: #1b1f27;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0px 4px 10px rgba(255, 255, 255, 0.05);
+    margin-bottom: 20px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 550px;
+}
+
+/* ✅ Campaign Titles & Pool Size */
+.campaign-info h3 {
+    font-size: 22px;
+    font-weight: bold;
+    text-align: center;
+    color: #ffffff;
+}
+
+.pool-size {
+    font-size: 20px;
+    color: #3ddc97;
+    font-weight: bold;
+    margin: 10px 0;
+}
+
+/* ✅ Campaign Images - Fixed Size */
+.campaign-img {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    height: 250px;
+    object-fit: cover;
+    border-radius: 10px;
+}
+
+/* ✅ Icons */
+.popup-icon {
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    transition: transform 0.2s ease-in-out;
+}
+
+.popup-icon:hover {
+    transform: scale(1.1);
+}
+
+/* ✅ Extra Buttons Layout */
+.extra-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+/* ✅ Bet Buttons */
+.bet-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: auto;
+}
+
+.bet-buttons button {
+    width: 150px;
+    font-size: 16px;
+    padding: 10px;
+}
+
+/* ✅ Left Bet Button */
+.bet-buttons button.left-btn {
+    background-color: #3ddc97;
+    color: #12181f;
+}
+
+.bet-buttons button.left-btn:hover {
+    background-color: #2bb673;
+}
+
+/* ✅ Right Bet Button */
+.bet-buttons button.right-btn {
+    background-color: #E63946;
+    color: white;
+}
+
+.bet-buttons button.right-btn:hover {
+    background-color: #C82333;
+}
+
+/* ✅ Footer */
+.footer {
+    text-align: center;
+    font-size: 14px;
+    color: #aaaaaa;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 50px; /* Adjust if needed */
+    background-color: #0d1117;
+    z-index: 1000; /* Ensure it stays above other elements */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 15px;
+}
+
+/* ✅ Responsive Header (Mobile Optimization) */
+@media (max-width: 768px) {
+    .header {
+        flex-direction: column;
+        text-align: center;
+        padding: 10px;
+    }
+    .header-left, .header-right {
+        margin: 5px 0;
+        text-align: center;
+    }
+}
+
+/* ✅ Notification Badge Styling */
+.notification-badge {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    background: white;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.notification-badge img {
+    width: 24px;
+    height: 24px;
+}
+
+.notification-badge span {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: red;
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+    border-radius: 50%;
+    padding: 5px 10px;
+    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.3);
+}
+@keyframes flash {
+    0% { color: white; }
+    50% { color: #3ddc97; }
+    100% { color: white; }
+}
+
+#campaign-count.flash {
+    animation: flash 0.5s ease-in-out;
+}
+
+
+.footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 50px; /* Adjust if needed */
+    background-color: #000; /* Keep it visible */
+    z-index: 1000; /* Ensure it stays above other elements */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px 20px;
+}
+
+/* ✅ Ensure body has enough padding to avoid overlap */
+body {
+    padding-top: 70px; /* Adjust to match header height */
+    padding-bottom: 60px; /* Adjust to match footer height */
+}
+

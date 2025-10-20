@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Swap UI</title>
+    <script src="config.js" defer></script> <!-- ✅ Load Global Config -->
+
+    <style>
+        body {
+            background-color: #0d0d22;
+            color: white;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .swap-container {
+            background: #121233;
+            padding: 20px;
+            border-radius: 16px;
+            width: 350px;
+            text-align: center;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .swap-box {
+            background: #1b1b3a;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .swap-box input {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: white;
+            width: 70%;
+            text-align: left;
+        }
+
+        .swap-box input:focus {
+            outline: none;
+        }
+
+        .token-btn {
+            background: #2a2a5a;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+        }
+
+        .token-btn img {
+            width: 18px;
+            margin-right: 5px;
+        }
+
+        .swap-btn {
+            background: #FFC857;
+            color: black;
+            font-weight: bold;
+            padding: 12px;
+            border: none;
+            border-radius: 30px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 15px;
+        }
+
+        .switch-btn {
+            background: #28285A;
+            border: none;
+            padding: 10px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 10px auto;
+        }
+
+        .switch-btn img {
+            width: 20px;
+        }
+
+        .wallet-info {
+            margin-top: 20px;
+            background: #1b1b3a;
+            padding: 10px;
+            border-radius: 10px;
+            text-align: left;
+        }
+
+        .wallet-info div {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .wallet-info img {
+            width: 20px;
+            margin-right: 5px;
+        }
+
+        .wallet-info span {
+            font-size: 14px;
+            color: #b3b3b3;
+        }
+
+        .price-info {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #ffd700;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="swap-container">
+        <h3>Crypto Swap</h3>
+
+        <div class="price-info" id="solanaPrice">Loading SOL Price...</div>
+
+        <div class="swap-box">
+            <input type="number" id="payAmount" value="0" min="0" oninput="calculateSwap()">
+            <button class="token-btn" id="payToken" onclick="switchTokens()">
+                <img src="https://cryptologos.cc/logos/solana-sol-logo.png?v=023" alt="SOL">
+                SOL
+            </button>
+        </div>
+
+        <button class="switch-btn" onclick="switchTokens()">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/9/94/Arrow-down.svg" alt="Swap">
+        </button>
+
+        <div class="swap-box">
+            <input type="text" id="receiveAmount" value="0" readonly>
+            <button class="token-btn" id="receiveToken" onclick="switchTokens()">
+                <img src="https://cryptologos.cc/logos/orca-orca-logo.png?v=023" alt="ORCA">
+                ORCA
+            </button>
+        </div>
+
+        <button class="swap-btn" onclick="connectWallet()">Connect Wallet</button>
+
+        <div class="wallet-info">
+            <div>
+                <span><img src="https://cryptologos.cc/logos/solana-sol-logo.png?v=023"> SOL Balance</span>
+                <span id="solBalance">$0.00</span>
+            </div>
+            <div>
+                <span><img src="https://cryptologos.cc/logos/orca-orca-logo.png?v=023"> ORCA Balance</span>
+                <span>$2.50</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let walletAddress = null;
+        let payToken = "SOL";
+        let receiveToken = "ORCA";
+        let solPrice = 0;
+        let exchangeRate = 0; // Placeholder
+
+        // ✅ Fetch SOL and USDC prices from CoinGecko
+        async function fetchSolanaPrice() {
+            try {
+                const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana,usd-coin&vs_currencies=usd');
+                const data = await response.json();
+                solPrice = data.solana.usd;
+                document.getElementById('solanaPrice').innerText = `1 SOL = $${solPrice.toFixed(2)} USD`;
+            } catch (error) {
+                console.error('❌ Error fetching SOL price:', error);
+                document.getElementById('solanaPrice').innerText = 'Error fetching SOL price';
+            }
+        }
+
+        // ✅ Connect to Phantom Wallet
+        async function connectWallet() {
+            if (window.solana && window.solana.isPhantom) {
+                try {
+                    const response = await window.solana.connect();
+                    walletAddress = response.publicKey.toString();
+                    document.querySelector(".swap-btn").textContent = `Connected: ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`;
+                    console.log("✅ Wallet Connected:", walletAddress);
+                } catch (error) {
+                    console.error("❌ Wallet Connection Failed:", error);
+                    alert("Failed to connect wallet!");
+                }
+            } else {
+                alert("Phantom Wallet not found! Install it from https://phantom.app/");
+            }
+        }
+
+        // ✅ Calculate Swap using SOL price
+        function calculateSwap() {
+            let amount = document.getElementById("payAmount").value;
+            let converted = (amount * solPrice).toFixed(2);
+            document.getElementById("receiveAmount").value = converted;
+        }
+
+        // ✅ Switch Token Pairs
+        function switchTokens() {
+            [payToken, receiveToken] = [receiveToken, payToken];
+            document.getElementById("payToken").innerHTML = `<img src="${getTokenImage(payToken)}"> ${payToken}`;
+            document.getElementById("receiveToken").innerHTML = `<img src="${getTokenImage(receiveToken)}"> ${receiveToken}`;
+            calculateSwap();
+        }
+
+        // ✅ Get Token Image
+        function getTokenImage(token) {
+            const images = {
+                "SOL": "https://cryptologos.cc/logos/solana-sol-logo.png?v=023",
+                "ORCA": "https://cryptologos.cc/logos/orca-orca-logo.png?v=023"
+            };
+            return images[token] || "";
+        }
+
+        // ✅ Fetch SOL price when the page loads
+        document.addEventListener("DOMContentLoaded", fetchSolanaPrice);
+    </script>
+
+</body>
+</html>
+

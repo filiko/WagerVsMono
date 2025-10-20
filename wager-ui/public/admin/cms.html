@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campaign Management</title>
+    <link rel="stylesheet" href="cms.css" />
+    <script src="config.js" defer></script> <!-- ✅ Load Global Config -->
+    <script src="checkAuth.js" defer></script> <!-- ✅ Load Global Config -->
+</head>
+
+<body>
+    <!-- ✅ Admin Portal Button -->
+    <div class="top-bar">
+        <button class="admin-btn" onclick="adminUrl()">Admin
+            Portal</button>
+        <button class="admin-btn" onclick="logout()">Logout</button>
+    </div>
+    <div class="container">
+        <h2>Campaign Management</h2>
+        <div class="filter-row">
+            <!-- User Filter -->
+            <div class="form-group">
+                <label for="profile_id">Users:</label>
+                <select name="profile_id" id="profile_id">
+                    <option value="">All</option>
+                </select>
+            </div>
+
+            <!-- Visibility Filter -->
+            <div class="form-group">
+                <label for="visibility">Visibility:</label>
+                <select name="visibility" id="visibility">
+                    <option value="">All</option>
+                    <option value="public">Public</option>
+                    <option value="private">Private</option>
+                </select>
+            </div>
+
+            <!-- Status Filter -->
+            <div class="form-group">
+                <label for="statusFilter">Status:</label>
+                <select id="statusFilter">
+                    <option value="">All</option>
+                    <option value="active">Active</option>
+                    <option value="pending">Pending</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+            </div>
+
+            <!-- Apply Filters Button -->
+            <button onclick="loadCampaigns()" class="btn-filter">🔍 Apply</button>
+        </div>
+
+        <!-- Campaign Selector -->
+        <div class="form-group">
+            <label for="campaignSelector">Select Campaign:</label>
+            <select id="campaignSelector" onchange="loadCampaign()">
+                <option value="">New Campaign</option>
+            </select>
+        </div>
+
+        <!-- Campaign Name -->
+        <div class="form-group">
+            <label for="name">Campaign Name:</label>
+            <input type="text" id="name" required>
+        </div>
+
+        <!-- Campaign Description -->
+        <div class="form-group">
+            <label for="description">Description:</label>
+            <textarea id="description" rows="3"></textarea>
+        </div>
+
+
+        <!-- AI Prediction -->
+        <div class="form-group">
+            <label for="AiPrediction">AI Prediction:</label>
+            <input type="text" id="AiPrediction" required>
+        </div>
+        <!-- AI Prediction -->
+        <div class="form-group">
+            <label for="ai_prediction">AI Prediction:</label>
+            <select name="ai_prediction" id="ai_prediction">
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+            </select>
+        </div>
+        <!-- AI Prediction -->
+        <div class="form-group">
+            <label for="ai_prediction">Select Categories:</label>
+            <select name="category_id" id="category_id">
+
+            </select>
+        </div>
+
+
+        <!-- AI Reason -->
+        <div class="form-group">
+            <label for="AIReason">AI Reason:</label>
+            <textarea id="AIReason" rows="3"></textarea>
+        </div>
+
+        <!-- Upload Image -->
+        <div class="form-group">
+            <label for="image">Upload Image:</label>
+            <input type="file" id="image" accept="image/*" onchange="previewImage()">
+            <img id="imagePreview" class="image-preview" src="./default_campaign_image.jpg" alt="Preview">
+        </div>
+
+        <!-- Left Button -->
+        <div class="form-group">
+            <label for="left_button">Left Button Text:</label>
+            <input type="text" id="left_button" required>
+        </div>
+        <div class="form-group">
+            <label for="status">Status:</label>
+            <select name="status" id="status">
+                <option value="active">Active</option>
+                <option value="pending">Pending</option>
+                <option value="rejected">Rejected</option>
+            </select>
+        </div>
+
+        <!-- Right Button -->
+        <div class="form-group">
+            <label for="right_button">Right Button Text:</label>
+            <input type="text" id="right_button" required>
+        </div>
+        <div class="form-group">
+            <label for="lock_at">Lock At:</label>
+            <input type="datetime-local" id="lock_at">
+        </div>
+        <div class="form-group">
+            <label for="expiresAt">Expires At:</label>
+            <input type="datetime-local" id="expiresAt">
+        </div>
+        <div id="wallets" style="display: none;">
+            <!-- Left Wallet Button -->
+            <div class="form-group">
+                <label for="leftWallet">Left Wallet:</label>
+                <input type="text" id="leftWallet" disabled>
+            </div>
+
+            <!-- Right Wallet Button -->
+            <div class="form-group">
+                <label for="rightWallet">Right Wallet:</label>
+                <input type="text" id="rightWallet" disabled>
+            </div>
+
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="button-group">
+            <button class="btn btn-primary" id="saveCampaign" onclick="saveCampaign()">Save Campaign</button>
+            <button class="btn btn-danger" id="deleteCampaign" onclick="deleteCampaign()">Delete Campaign</button>
+        </div>
+    </div>
+
+    <script>
+        let expiresAtInput = document.getElementById("expiresAt");
+        let lock_atInput = document.getElementById("lock_at");
+
+        // Function to set min attribute to prevent selecting past dates
+        function setMinDateTime() {
+            let now = new Date();
+            let year = now.getFullYear();
+            let month = String(now.getMonth() + 1).padStart(2, '0');
+            let day = String(now.getDate()).padStart(2, '0');
+            let hours = String(now.getHours()).padStart(2, '0');
+            let minutes = String(now.getMinutes()).padStart(2, '0');
+
+            let minDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+            expiresAtInput.min = minDateTime;
+            lock_atInput.min = minDateTime;
+        }
+
+        // Run the function on page load
+        setMinDateTime();
+
+        // Prevent user from selecting a past date
+        expiresAtInput.addEventListener("input", function () {
+            if (expiresAtInput.value < expiresAtInput.min) {
+                alert("Expiration date cannot be in the past!");
+                expiresAtInput.value = expiresAtInput.min; // Reset to the minimum allowed time
+            }
+        });
+        // Prevent user from selecting a past date
+        lock_atInput.addEventListener("input", function () {
+            if (lock_atInput.value < lock_atInput.min) {
+                alert("Lock out date date cannot be in the past!");
+                lock_atInput.value = lock_atInput.min; // Reset to the minimum allowed time
+            }
+        });
+        async function loadCampaigns() {
+            const profile_id = document.getElementById("profile_id").value;
+            const visibility = document.getElementById("visibility").value;
+            const status = document.getElementById("statusFilter").value;
+
+            const queryParams = new URLSearchParams({
+                ...(profile_id && { profile_id }),
+                ...(visibility && { visibility }),
+                ...(status && { status })
+            }).toString();
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/allcampaigns?${queryParams}`, {
+                    method: "GET",
+                    credentials: "include" // Ensure cookies are sent with request
+                });
+
+                if (!response.ok) throw new Error("Failed to fetch campaigns.");
+
+                const campaigns = await response.json();
+
+                // Populate selector with filtered campaigns
+                const campaignSelector = document.getElementById("campaignSelector");
+                campaignSelector.innerHTML = `<option value="">New Campaign</option>`;
+
+                campaigns.forEach(camp => {
+                    const option = document.createElement("option");
+                    option.value = camp.campaign_id;
+                    option.textContent = `${camp.name} (${camp.status} -- ${camp.visibility})`;
+                    campaignSelector.appendChild(option);
+                });
+
+            } catch (error) {
+                console.error("❌ Error fetching campaigns:", error);
+            }
+        }
+
+
+        async function loadCategories() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/categories`);
+                if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+
+                const categories = await response.json();
+                const selector = document.getElementById("category_id");
+
+                categories.forEach(category => {
+                    const option = document.createElement("option");
+                    option.value = category.id;
+                    option.textContent = category.name;
+                    selector.appendChild(option);
+                });
+                clearForm()
+            } catch (error) {
+                console.error("Error loading categories:", error);
+            }
+        }
+
+        async function loadUsers() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/user-has-campaigns`);
+                if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+
+                const profiles = await response.json();
+                const selector = document.getElementById("profile_id");
+
+                profiles.forEach(profile => {
+                    const option = document.createElement("option");
+                    option.value = profile.id;
+                    option.textContent = profile.username;
+                    selector.appendChild(option);
+                });
+                clearForm()
+            } catch (error) {
+                console.error("Error loading profiles:", error);
+            }
+        }
+
+
+        function formatDateForInput(utcDateTime) {
+            if (!utcDateTime) return "";
+
+            // Convert UTC string to Date object
+            const utcDate = new Date(utcDateTime); // Automatically treated as UTC
+
+            // Convert to user's local time
+            const localDate = new Date(utcDate.getTime() - utcDate.getTimezoneOffset() * 60000);
+
+            // Format as YYYY-MM-DDTHH:MM for `<input type="datetime-local">`
+            return localDate.toISOString().slice(0, 16);
+        }
+
+
+        async function loadCampaign() {
+            const campaignId = document.getElementById("campaignSelector").value;
+            if (!campaignId) return clearForm();
+            const token = getToken();
+            if (!token) {
+                checkAuth() // ✅ Redirect to login
+            }
+            try {
+                const response = await fetch(`${API_BASE_URL}/campaign/${campaignId}`, {
+                    method: "GET",
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+
+                const campaign = await response.json();
+
+                document.getElementById("name").value = campaign.name || "";
+                document.getElementById("description").value = campaign.description || "";
+                document.getElementById("left_button").value = campaign.left_button || "Left";
+                // not to update 
+                document.getElementById("left_button").disabled = true
+                document.getElementById("right_button").disabled = true
+
+                document.getElementById("leftWallet").value = campaign.leftWallet || "LeftWallet";
+                document.getElementById("right_button").value = campaign.right_button || "Right";
+                document.getElementById("rightWallet").value = campaign.rightWallet || "RightWallet";
+                document.getElementById("AiPrediction").value = campaign.AiPrediction || "";
+                document.getElementById("ai_prediction").value = campaign.ai_prediction || "left";
+                document.getElementById("category_id").value = campaign.category_id || 1;
+                document.getElementById("status").value = campaign.status || 'pending';
+                // debugger
+
+
+                // Assign the formatted date to the input field
+                let formatExpireAt = formatDateForInput(campaign.expires_at);
+                let formatLockAt = formatDateForInput(campaign.lock_at);
+                // console.log(formatExpireAt);
+
+                document.getElementById("expiresAt").value = formatExpireAt;
+                document.getElementById("lock_at").value = formatLockAt;
+                document.getElementById("AIReason").value = campaign.AIReason || "";
+                document.getElementById("wallets").style.display = "block";
+
+                const imageUrl = campaign.image_url ? `${campaign.image_url}` : ""; // Adjust the path as needed
+                document.getElementById("imagePreview").src = imageUrl && imageUrl !== "" ? BASE_URL + "/images/" + imageUrl : "./default_campaign_image.jpg";
+            } catch (error) {
+                console.error("Error loading campaign:", error);
+            }
+        }
+
+        function disableButtons() {
+            document.getElementById("saveCampaign").disabled = true;
+            document.getElementById("deleteCampaign").disabled = true;
+
+        }
+
+        // Function to format ISO date to "yyyy-MM-ddThh:mm"
+        function enableButtons() {
+            document.getElementById("saveCampaign").disabled = false;
+            document.getElementById("deleteCampaign").disabled = false;
+
+        }
+
+        async function saveCampaign() {
+            const name = document.getElementById("name").value.trim();
+            const description = document.getElementById("description").value.trim();
+            const left_button = document.getElementById("left_button").value.trim();
+            // const leftWallet = document.getElementById("leftWallet").value.trim();
+            const right_button = document.getElementById("right_button").value.trim();
+            // const rightWallet = document.getElementById("rightWallet").value.trim();
+            const AiPrediction = document.getElementById("AiPrediction").value.trim();
+            const AIReason = document.getElementById("AIReason").value.trim();
+            const expiresAt = document.getElementById("expiresAt").value.trim();
+            const lock_at = document.getElementById("lock_at").value.trim();
+            const ai_prediction = document.getElementById("ai_prediction").value.trim();
+            const category_id = document.getElementById("category_id").value.trim();
+            const status = document.getElementById("status").value.trim();
+            const imageInput = document.getElementById("image");
+            if (!name || !imageInput || !category_id || !status || !description || !left_button || !ai_prediction || !right_button || !AiPrediction || !AIReason || !expiresAt || !lock_at) {
+                alert("❌ Please complete all fields before saving.");
+                return;
+            }
+
+
+            // ✅ Convert to Date objects for comparison
+            const expiresDate = new Date(expiresAt);
+            const lockDate = new Date(lock_at);
+
+            // ✅ Ensure expiresAt is greater than lock_at
+            if (expiresDate <= lockDate) {
+                alert("❌ Expiration time must be greater than Lock time.");
+                return;
+            }
+
+
+            const formData = new FormData();
+            formData.append("name", name);
+            formData.append("expiresAt", expiresAt);
+            formData.append("ai_prediction", ai_prediction);
+            formData.append("lock_at", lock_at);
+            formData.append("category_id", category_id);
+            formData.append("status", status);
+            formData.append("description", description);
+            formData.append("left_button", left_button);
+            // formData.append("leftWallet", leftWallet);
+            formData.append("right_button", right_button);
+            // formData.append("rightWallet", rightWallet);
+            formData.append("AiPrediction", AiPrediction);
+            formData.append("AIReason", AIReason);
+            const timezoneOffsetMinutes = new Date().getTimezoneOffset(); // Get offset in minutes
+            const timezoneOffsetHours = -timezoneOffsetMinutes / 60; // Convert to hours
+            const timezoneString = `UTC${timezoneOffsetHours >= 0 ? `+${timezoneOffsetHours}` : timezoneOffsetHours}`;
+
+            formData.append("timezoneOffset", timezoneString); // Send "UTC+5" or "UTC-4" etc.
+            if (imageInput.files.length > 0) {
+                const file = imageInput.files[0]; // Extract the file object
+                formData.append("image_url", file); // Append the actual file object, not just the file name
+            }
+
+            const campaignId = document.getElementById("campaignSelector").value;
+            const endpoint = campaignId ? `${API_BASE_URL}/campaign/${campaignId}` : `${API_BASE_URL}/campaign`;
+            const method = campaignId ? "PUT" : "POST";
+            const token = getToken();
+
+            if (!token) {
+                checkAuth() // ✅ Redirect to login
+            }
+            disableButtons()
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: method,
+                    headers: { "Authorization": `Bearer ${token}` },
+                    body: formData
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || "Failed to save campaign.");
+                alert("✅ Campaign saved successfully!");
+                enableButtons()
+                loadCampaigns();
+                clearForm()
+            } catch (error) {
+                enableButtons()
+                console.error(error.message);
+                alert("❌" + error.message);
+            }
+        }
+
+        async function deleteCampaign() {
+
+            const campaignId = document.getElementById("campaignSelector").value;
+            if (!campaignId) {
+                alert("❌ No campaign selected.");
+                return;
+            }
+            const token = getToken();
+
+            if (!token) {
+                checkAuth() // ✅ Redirect to login
+            }
+
+            if (!confirm("⚠️ Are you sure you want to delete this campaign?")) return;
+            disableButtons()
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/campaign/${campaignId}`, {
+                    method: "DELETE",
+                    headers: { "Authorization": `Bearer ${token}` },
+
+                });
+
+                if (!response.ok) {
+                    const result = await response.json();
+
+                    throw new Error(result.error || "Failed to delete campaign.");
+                }
+
+                alert(`✅ Campaign deleted successfully!`);
+                loadCampaigns();
+                clearForm();
+                enableButtons()
+
+            } catch (error) {
+                console.error("❌ Error deleting campaign:", error);
+                alert("❌ Error deleting campaign.");
+                enableButtons()
+            }
+        }
+
+        function clearForm() {
+            document.getElementById("name").value = "";
+            document.getElementById("description").value = "";
+            document.getElementById("left_button").value = "";
+            document.getElementById("right_button").value = "";
+            document.getElementById("leftWallet").value = "";
+            document.getElementById("rightWallet").value = "";
+            document.getElementById("AiPrediction").value = "";
+            document.getElementById("AIReason").value = "";
+            document.getElementById("image").value = "";
+            document.getElementById("expiresAt").value = "";
+            document.getElementById("status").value = "pending";
+            document.getElementById("lock_at").value = "";
+            document.getElementById("ai_prediction").value = "";
+            document.getElementById("imagePreview").src = "./default_campaign_image.jpg";
+            document.getElementById("wallets").style.display = "none";
+            document.getElementById("left_button").disabled = false
+            document.getElementById("right_button").disabled = false
+        }
+
+        function previewImage() {
+            const imageInput = document.getElementById("image");
+            const imagePreview = document.getElementById("imagePreview");
+
+            if (imageInput.files && imageInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    imagePreview.src = e.target.result;
+                };
+                reader.readAsDataURL(imageInput.files[0]);
+            } else {
+                imagePreview.src = "";
+            }
+        }
+
+
+        document.addEventListener("DOMContentLoaded", loadCampaigns)
+        document.addEventListener("DOMContentLoaded", loadCategories)
+        document.addEventListener("DOMContentLoaded", loadUsers)
+
+    </script>
+    </script>
+</body>
+
+</html>

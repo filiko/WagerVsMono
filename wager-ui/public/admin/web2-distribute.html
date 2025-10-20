@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Web2 Distribution</title>
+  <link rel="stylesheet" href="web2.css" />
+  <script>
+    const API_BASE_URL = "https://vs.wagervs.fun:5000/api";
+  </script>
+  <script src="checkAuth.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <h2>⚙️ Web2 Distribution</h2>
+
+    <label for="campaignSelector">Select Campaign:</label>
+    <select id="campaignSelector">
+      <option value="">Select a campaign</option>
+    </select>
+
+    <label for="winnerSelector">Select Winning Candidate:</label>
+    <select id="winnerSelector">
+      <option value="">Select winner</option>
+    </select>
+
+    <button id="runDistributionBtn">📊 Calculate Payouts</button>
+
+    <div id="distributionResults" style="margin-top:30px;"></div>
+
+    <button id="sendDistributionsBtn" style="margin-top:20px; display:none;">🚀 Send VSChips to Winners</button>
+    <div id="payoutStatus" style="margin-top:10px;"></div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      const token = getToken();
+      if (!token) return checkAuth();
+
+      const res = await fetch(`${API_BASE_URL}/allcampaigns`);
+      const data = await res.json();
+
+      const selector = document.getElementById("campaignSelector");
+      selector.innerHTML = `<option value="">Select a campaign</option>`;
+      data.forEach(c => {
+        const option = document.createElement("option");
+        option.value = c.campaign_id;
+        option.textContent = c.name;
+        selector.appendChild(option);
+      });
+
+      selector.addEventListener("change", async () => {
+        const campaignId = selector.value;
+        if (!campaignId) return;
+
+        const res = await fetch(`${API_BASE_URL}/web2/distribution-candidates?campaign_id=${campaignId}`, {
+          headers: { "Authorization": `Bearer ${getToken()}` }
+        });
+
+        const result = await res.json();
+        const winnerSelector = document.getElementById("winnerSelector");
+        winnerSelector.innerHTML = `<option value="">Select winner</option>`;
+
+        if (result.left_button) {
+          winnerSelector.innerHTML += `<option value="${result.left_button}">${result.left_button}</option>`;
+        }
+        if (result.right_button) {
+          winnerSelector.innerHTML += `<option value="${result.right_button}">${result.right_button}</option>`;
+        }
+      });
+    });
+
+    document.getElementById("runDistributionBtn").addEventListener("click", executeWeb2Distribution);
+
+    async function executeWeb2Distribution() {
+      const campaignId = document.getElementById("campaignSelector").value;
+      const winningCandidate = document.getElementById("winnerSelector").value;
+      if (!campaignId || !winningCandidate) return alert("Please select campaign and winner.");
+
+      const token = getToken();
+      if (!token) return checkAuth();
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/web2/distribution-summary?campaign_id=${campaignId}&winning_candidate=${winningCandidate}`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Failed to load");
+
+        const container = document.getElementById("distributionResults");
+        if (!Array.isArray(data)) throw new Error("Invalid data");
+
+        container.innerHTML = `
+          <h3>Results</h3>
+          <table>
+            <thead>
+              <tr><th>Wallet</th><th>Total Payout (VSChips)</th></tr>
+            </thead>
+            <tbody>
+              ${data.map(row => `
+                <tr>
+                  <td>${row.wallet_id}</td>
+                  <td>${Number(row.total_amount).toLocaleString()}</td>
+                </tr>`).join("")}
+            </tbody>
+          </table>
+        `;
+
+        document.getElementById("sendDistributionsBtn").style.display = "inline-block";
+      } catch (err) {
+        console.error("❌ Error running Web2 Distribution", err);
+        alert("❌ Failed to fetch distribution results.");
+      }
+    }
+
+document.getElementById("sendDistributionsBtn").addEventListener("click", async () => {
+  const campaignId = document.getElementById("campaignSelector").value;
+  const winningCandidate = document.getElementById("winnerSelector").value;
+  if (!campaignId || !winningCandidate) return alert("Missing data.");
+
+  const rows = document.querySelectorAll("#distributionResults tbody tr");
+  if (!rows.length) return alert("No distribution data.");
+
+  const token = getToken();
+  if (!token) return checkAuth();
+
+  const payoutStatus = document.getElementById("payoutStatus");
+  payoutStatus.innerHTML = "🚚 Sending payouts...<br/>";
+  document.getElementById("sendDistributionsBtn").disabled = true;
+
+  for (let row of rows) {
+    const walletId = row.children[0].textContent.trim();
+    const fullAmount = parseFloat(row.children[1].textContent.replace(/[^0-9.]/g, ""));
+
+    const winnerAmount = (fullAmount * 0.99).toFixed(2);
+    const bankAmount = (fullAmount * 0.01).toFixed(2);
+
+    try {
+      // 1. Distribute 99% to winner
+      const res = await fetch(`${API_BASE_URL}/web2/distribute-vschips`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+          wallet_id: walletId, 
+          amount: winnerAmount, 
+          campaign_id: campaignId, 
+          winning_candidate: winningCandidate 
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Winner payout failed");
+
+      // 2. Send 1% to Web2Bank
+      const bankWallet = "Web2Wallet_Bank4VSChips"; // Replace with actual wallet ID if needed
+      const bankRes = await fetch(`${API_BASE_URL}/web2/distribute-vschips`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+          wallet_id: bankWallet, 
+          amount: bankAmount, 
+          campaign_id: campaignId, 
+          winning_candidate: "bank"
+        })
+      });
+
+      const bankData = await bankRes.json();
+      if (!bankRes.ok) throw new Error(bankData.message || "Bank payout failed");
+
+      payoutStatus.innerHTML += `✅ ${walletId} received ${winnerAmount} VSChips (💰 1% = ${bankAmount} sent to bank)<br/>`;
+
+    } catch (err) {
+      console.error("❌ Error:", err);
+      payoutStatus.innerHTML += `❌ ${walletId} failed: ${err.message}<br/>`;
+    }
+  }
+
+  document.getElementById("sendDistributionsBtn").disabled = false;
+});
+
+    function getToken() {
+      return localStorage.getItem("token") || null;
+    }
+  </script>
+</body>
+</html>
+

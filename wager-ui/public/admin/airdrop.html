@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airdrop Overview</title>
+    <link rel="stylesheet" href="cms.css" />
+    <script src="config.js" defer></script> <!-- ✅ Load Global Config -->
+    <script src="checkAuth.js" defer></script> <!-- ✅ Load Global Config -->
+</head>
+
+<body>
+
+    <!-- ✅ Admin Portal Button -->
+    <div class="top-bar">
+        <button class="admin-btn" onclick="adminUrl()">Admin
+            Portal</button>
+        <button class="admin-btn" onclick="logout()">Logout</button>
+
+    </div>
+
+    <div class="container">
+        <h2>Airdrop Summary</h2>
+
+        <!-- ✅ Multiplier Input -->
+        <label for="multiplier">Set Multiplier:</label>
+        <input type="number" id="multiplier" value="1000" min="1" oninput="updateAirdropAmounts()">
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Wallet ID</th>
+                    <th>xPoints</th>
+                    <th>$VS Airdrop</th>
+                </tr>
+            </thead>
+            <tbody id="airdropTable">
+                <!-- Rows will be inserted here -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+
+
+
+
+        let airdropData = [];
+
+        async function loadAirdropData() {
+            try {
+                const token = getToken();
+
+                if (!token) {
+                    checkAuth() // ✅ Redirect to login
+                }
+                const response = await fetch(`${API_BASE_URL}/airdropUsers`, {
+                    method: "GET",
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error("Failed to fetch data.");
+
+                airdropData = await response.json();
+                updateAirdropAmounts();
+            } catch (error) {
+                console.error("❌ Error loading airdrop data:", error);
+                alert("Failed to load airdrop data.");
+            }
+        }
+
+        function updateAirdropAmounts() {
+            const multiplier = parseFloat(document.getElementById("multiplier").value) || 1;
+            const tableBody = document.getElementById("airdropTable");
+            tableBody.innerHTML = "";
+
+            airdropData.forEach(user => {
+                const airdropAmount = user.xPoints * multiplier;
+                const row = `<tr>
+                    <td>${user.walletID}</td>
+                    <td>${user.xPoints.toLocaleString()}</td>
+                    <td>${airdropAmount.toLocaleString()} $VS</td>
+                </tr>`;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        document.addEventListener("DOMContentLoaded",loadAirdropData);
+    </script>
+
+</body>
+
+</html>

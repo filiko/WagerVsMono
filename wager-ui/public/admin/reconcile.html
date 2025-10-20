@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Web2 VSChips Reconciliation</title>
+  <link rel="stylesheet" href="admin.css" />
+  <script src="config.js" defer></script>
+  <script src="checkAuth.js" defer></script>
+  <style>
+    body {
+      background-color: #121212;
+      color: white;
+      font-family: sans-serif;
+      padding: 40px;
+    }
+
+    .utility-container {
+      background: #1e1e1e;
+      padding: 30px;
+      border-radius: 16px;
+      max-width: 1000px;
+      margin: auto;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #FFD700;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th, td {
+      padding: 12px;
+      text-align: center;
+      border-bottom: 1px solid #333;
+    }
+
+    th {
+      background-color: #222;
+      font-weight: bold;
+    }
+
+    tr:hover {
+      background-color: #2a2a2a;
+    }
+
+    .discrepancy {
+      color: red;
+      font-weight: bold;
+    }
+
+    .correct {
+      color: green;
+    }
+
+    .fix-button {
+      background: #FFD700;
+      color: #000;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+
+    .fix-button:disabled {
+      background: #444;
+      color: #999;
+      cursor: default;
+    }
+.fix-button.glow {
+  animation: soft-glow 1.4s ease-in-out infinite;
+}
+
+@keyframes soft-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 6px 3px rgba(255, 215, 0, 0.25);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 215, 0, 0);
+  }
+}
+
+    a.utility-button {
+      display: inline-block;
+      margin-top: 30px;
+      padding: 10px 20px;
+      background: #FFD700;
+      color: #000;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+  </style>
+  <script>
+    async function loadReconciliation() {
+      const token = getToken?.();
+      if (!token) {
+        alert("❌ Admin login required");
+        location.href = "index.html";
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/reconciliation-list`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        const data = await res.json();
+        const table = document.getElementById("reconTable");
+
+        if (!data.success) {
+          alert("❌ Failed to load reconciliation data.");
+          return;
+        }
+
+        data.wallets.forEach(row => {
+          const tr = document.createElement("tr");
+          const isFixed = parseFloat(row.discrepancy) === 0;
+
+          tr.innerHTML = `
+            <td>${row.wallet}</td>
+            <td>${Number(row.recorded).toLocaleString()}</td>
+            <td>${Number(row.computed).toLocaleString()}</td>
+            <td class="${isFixed ? 'correct' : 'discrepancy'}">
+              ${Number(row.discrepancy).toLocaleString()}
+            </td>
+            <td>
+	 <td>
+  <button class="fix-button ${!isFixed ? 'glow' : ''}" ${isFixed ? "disabled" : ""} onclick="fixWallet('${row.wallet}', this, '${row.discrepancy}')">
+    🛠️ Fix It
+  </button>
+</td>
+
+
+
+            </td>
+          `;
+
+          table.appendChild(tr);
+        });
+      } catch (err) {
+        console.error("❌ Error loading reconciliation:", err);
+        alert("❌ Server error loading reconciliation data.");
+      }
+    }
+
+async function fixWallet(walletId, button) {
+  const token = getToken?.();
+  if (!token) {
+    console.warn("❌ No token found");
+    return alert("❌ Admin login required.");
+  }
+
+  const row = button.closest("tr");
+  const discrepancyText = row.querySelector("td:nth-child(4)").innerText;
+  const discrepancy = parseFloat(discrepancyText.replace(/,/g, ""));
+
+  console.log("🧾 Wallet ID:", walletId);
+  console.log("💥 Discrepancy value:", discrepancy);
+
+  let note = "";
+
+  if (discrepancy < 0) {
+    note = prompt(`⚠️ Enter reason for fixing negative discrepancy for:\n${walletId}`);
+    console.log("📝 Note entered:", note);
+
+    if (!note) {
+      console.warn("❌ No note provided, canceling.");
+      return alert("❌ Fix canceled. Admin note is required.");
+    }
+  } else {
+    const confirmFix = confirm(`⚠️ Fix balance for ${walletId}?`);
+    console.log("✅ Confirm clicked:", confirmFix);
+    if (!confirmFix) {
+      console.warn("❌ Fix canceled by user.");
+      return;
+    }
+  }
+
+  try {
+    console.log("📡 Sending POST to /admin/reconcile/", walletId);
+    const res = await fetch(`${API_BASE_URL}/admin/reconcile/${walletId}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ note }),
+    });
+
+    const data = await res.json();
+    console.log("📥 Response from server:", data);
+
+    if (data.success) {
+      alert(`✅ ${walletId} fixed.`);
+      button.disabled = true;
+      row.querySelector("td:nth-child(4)").innerText = "0";
+      row.querySelector("td:nth-child(4)").className = "correct";
+    } else {
+      alert("❌ Fix failed: " + (data.error || "unknown error"));
+    }
+  } catch (err) {
+    console.error("❌ Fix failed:", err);
+    alert("❌ Server error during fix.");
+  }
+}
+
+    window.addEventListener("DOMContentLoaded", loadReconciliation);
+  </script>
+</head>
+<body>
+  <div class="utility-container">
+    <h2>🧾 Web2 VSChips Reconciliation</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Wallet</th>
+          <th>Recorded Balance</th>
+          <th>Computed from Transactions</th>
+          <th>Discrepancy</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="reconTable">
+        <!-- Filled by JS -->
+      </tbody>
+    </table>
+
+    <div style="text-align:center;">
+      <a href="admin.html" class="utility-button">⬅ Back to Admin</a>
+    </div>
+  </div>
+</body>
+</html>
+

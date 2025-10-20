@@ -1,0 +1,363 @@
+/* Ensure the table columns are wide enough */
+table {
+    width: 100%;
+
+    table-layout: auto;
+    /* Auto-layout will adjust column width according to content */
+}
+
+.details-table-container,
+.table-auto {
+    margin: 20px;
+    overflow: auto;
+}
+
+th,
+td {
+    padding: 12px;
+    /* Adjust for better readability */
+    text-align: left;
+    white-space: normal;
+    /* Allow text wrapping */
+    overflow: visible;
+    /* Prevent hidden content */
+    word-wrap: break-word;
+    /* Break long words to fit within the table */
+}
+
+/* Set minimum width for columns */
+th,
+td {
+    min-width: 150px;
+    /* Ensure no column gets too narrow */
+}
+
+/* Optional: Add a specific max width for columns, you can adjust as needed */
+td:nth-child(1),
+th:nth-child(1) {
+    width: 200px;
+}
+
+/* For Wallet */
+td:nth-child(2),
+th:nth-child(2) {
+    width: 200px;
+}
+
+/* For Candidate */
+td:nth-child(3),
+th:nth-child(3) {
+    width: 150px;
+}
+
+/* For Waged */
+td:nth-child(4),
+th:nth-child(4) {
+    width: 150px;
+}
+
+/* For Winnings */
+td:nth-child(5),
+th:nth-child(5) {
+    width: 100px;
+}
+
+/* For Send */
+
+body {
+    text-align: center;
+    font-family: Arial, sans-serif;
+    background-color: #121212;
+    color: #ffffff;
+    margin: 0;
+    padding: 20px;
+}
+
+.container {
+    width: 90%;
+    /* max-width: 600px; */
+    margin: 20px auto;
+    background: #1e1e1e;
+    padding: 25px;
+    border-radius: 10px;
+    box-shadow: 0px 0px 15px rgba(255, 255, 255, 0.1);
+}
+
+h2 {
+    margin-bottom: 20px;
+    color: #ffffff;
+    font-size: 24px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+    text-align: left;
+}
+
+label {
+    font-weight: bold;
+    display: block;
+    margin-bottom: 5px;
+    color: #bbbbbb;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    border: 1px solid #444;
+    background-color: #252525;
+    color: #ffffff;
+    border-radius: 5px;
+    outline: none;
+}
+
+textarea {
+    resize: vertical;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+    border-color: #007bff;
+    box-shadow: 0px 0px 5px rgba(0, 123, 255, 0.5);
+}
+
+.image-preview {
+    width: 100%;
+    max-width: 400px;
+    margin-top: 10px;
+    border-radius: 5px;
+    display: block;
+    background-color: #000;
+    padding: 5px;
+}
+
+.button-group {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.btn {
+    font-size: 16px;
+    padding: 12px;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    color: white;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
+
+.btn:hover {
+    opacity: 0.85;
+}
+
+.admin-btn,
+button {
+    font-size: 16px;
+    font-weight: bold;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    margin: 5px auto;
+    background-color: #ffcc00;
+    color: #121212;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.admin-btn:hover {
+    background-color: #e6b800;
+}
+
+.records {
+    background: #222;
+    color: #fff;
+    padding: 10px;
+    margin: 5px 0;
+    border-radius: 4px;
+}
+
+#transferLogs {
+    word-wrap: break-word;
+    /* Break long words */
+    overflow-wrap: break-word;
+
+
+}
+
+.success {
+    background: #28a745;
+    color: white;
+    padding: 10px;
+    margin-top: 10px;
+    text-align: center;
+}
+
+.error {
+    background: #dc3545;
+    color: white;
+    padding: 10px;
+    margin-top: 10px;
+    text-align: center;
+}
+
+.d-none {
+    display: none;
+}
+
+.modal-content>div {
+    font-size: 20px;
+}
+
+.modal {
+    display: none;
+    /* Hidden by default */
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    justify-content: center;
+    align-items: center;
+    /* padding: 10px; Ensures it doesn't touch the edges on small screens */
+}
+
+#transferLogs {
+    text-align: start;
+}
+
+.modal-content {
+    width: 600px;
+    /* Fixed width for larger screens */
+    max-width: 80%;
+    /* Ensures it fits within the screen on smaller devices */
+    text-align: center;
+    position: relative;
+    background: #1e1e1e;
+    padding: 25px;
+    border-radius: 5px;
+    box-shadow: 0px 0px 15px rgba(255, 255, 255, 0.1);
+}
+
+/* ✅ Make modal responsive on small screens */
+@media screen and (max-width: 850px) {
+    .modal-content {
+        width: 80%;
+        /* Adjust width to fit smaller screens */
+        max-width: 4500px;
+        /* Reduce max width */
+    }
+}
+
+@media screen and (max-width: 600px) {
+    .modal-content {
+        width: 85%;
+        /* Almost full width on small screens */
+        max-width: 80%;
+    }
+}
+
+.close-btn {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.close-btn:hover {
+    color: red;
+}
+
+/* loader */
+/* From Uiverse.io by G4b413l */
+.newtons-cradle {
+    --uib-size: 50px;
+    --uib-speed: 1.2s;
+    --uib-color: #474554;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--uib-size);
+    height: var(--uib-size);
+}
+
+.newtons-cradle__dot {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 100%;
+    width: 25%;
+    transform-origin: center top;
+}
+
+.newtons-cradle__dot::after {
+    content: '';
+    display: block;
+    width: 100%;
+    height: 25%;
+    border-radius: 50%;
+    background-color: var(--uib-color);
+}
+
+.newtons-cradle__dot:first-child {
+    animation: swing var(--uib-speed) linear infinite;
+}
+
+.newtons-cradle__dot:last-child {
+    animation: swing2 var(--uib-speed) linear infinite;
+}
+
+@keyframes swing {
+    0% {
+        transform: rotate(0deg);
+        animation-timing-function: ease-out;
+    }
+
+    25% {
+        transform: rotate(70deg);
+        animation-timing-function: ease-in;
+    }
+
+    50% {
+        transform: rotate(0deg);
+        animation-timing-function: linear;
+    }
+}
+
+@keyframes swing2 {
+    0% {
+        transform: rotate(0deg);
+        animation-timing-function: linear;
+    }
+
+    50% {
+        transform: rotate(0deg);
+        animation-timing-function: ease-out;
+    }
+
+    75% {
+        transform: rotate(-70deg);
+        animation-timing-function: ease-in;
+    }
+}
+
+/* loader */

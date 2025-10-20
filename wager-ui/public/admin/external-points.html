@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Add External Points</title>
+  <link rel="stylesheet" href="admin.css" />
+  <script src="config.js" defer></script>
+  <script src="checkAuth.js" defer></script>
+  <style>
+    body {
+      background-color: #121212;
+      color: white;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 40px;
+    }
+
+    .form-container {
+      background: #1e1e1e;
+      max-width: 500px;
+      margin: auto;
+      padding: 30px;
+      border-radius: 20px;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.05);
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    input, select, textarea, button {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 20px;
+      border-radius: 10px;
+      border: 1px solid #555;
+      background-color: #2a2a2a;
+      color: white;
+      font-size: 16px;
+    }
+
+    button {
+      background-color: #FFD700;
+      color: black;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #e6c200;
+    }
+
+    .success {
+      color: #4CAF50;
+      text-align: center;
+    }
+
+    .error {
+      color: #FF5252;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="form-container">
+    <h2>➕ Add External Points</h2>
+    <input type="text" id="walletId" placeholder="Wallet ID" />
+    <input type="number" id="amount" placeholder="Points Amount" />
+    
+    <select id="eventType">
+      <option value="">Select Event Type</option>
+      <option value="twitter">Twitter (X)</option>
+      <option value="facebook">Facebook</option>
+      <option value="instagram">Instagram</option>
+      <option value="other">Other</option>
+    </select>
+
+    <textarea id="reason" placeholder="Reason / Description"></textarea>
+    <button onclick="submitPoints()">Submit</button>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    async function submitPoints() {
+      const walletId = document.getElementById('walletId').value.trim();
+      const amount = parseInt(document.getElementById('amount').value.trim());
+      const eventType = document.getElementById('eventType').value;
+      const reason = document.getElementById('reason').value.trim();
+      const result = document.getElementById('result');
+      const token = getToken();
+
+      if (!walletId || isNaN(amount) || !reason || !eventType) {
+        result.innerHTML = `<p class="error">❌ All fields are required.</p>`;
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/add-external-points`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          wallet_id: walletId,
+          amount,
+          event_type: eventType,
+          description: reason
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        result.innerHTML = `<p class="success">✅ ${data.message || "Points added successfully!"}</p>`;
+        document.getElementById('walletId').value = '';
+        document.getElementById('amount').value = '';
+        document.getElementById('eventType').value = '';
+        document.getElementById('reason').value = '';
+      } else {
+        result.innerHTML = `<p class="error">❌ ${data.message || "Something went wrong."}</p>`;
+      }
+    }
+  </script>
+</body>
+
+</html>
+

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Issue Refund</title>
+  <link rel="stylesheet" href="distribute.css" />
+  <script src="config.js" defer></script>
+  <script src="checkAuth.js" defer></script>
+</head>
+
+<body>
+  <div class="top-bar">
+    <button class="admin-btn" onclick="adminUrl()">Admin Portal</button>
+    <button class="admin-btn" onclick="logout()">Logout</button>
+  </div>
+
+  <div class="container">
+    <h2>Issue Refund</h2>
+
+    <!-- ✅ Campaign Selector -->
+    <label for="campaignSelector">Select Campaign:</label>
+    <select id="campaignSelector">
+      <option value="">Select a Campaign</option>
+    </select>
+
+    <!-- ✅ Wallet Input -->
+    <label for="recipientWallet">Recipient Wallet:</label>
+    <input type="text" id="recipientWallet" placeholder="Enter Solana Wallet Address" />
+
+    <!-- ✅ Amount Input -->
+    <label for="refundAmount">Amount ($VS):</label>
+    <input type="number" id="refundAmount" placeholder="Enter Amount" />
+
+    <!-- ✅ Source Wallet Input -->
+    <label for="sourceWallet">Source Private Key:</label>
+    <input type="text" id="sourceWallet" placeholder="Enter Source Private Key" />
+
+    <!-- ✅ Send Button -->
+    <button onclick="sendRefund()">Send Refund</button>
+  </div>
+
+  <!-- ✅ Modal -->
+  <div id="customModal" class="modal">
+    <div class="modal-content">
+      <h2>Don't Refresh the Page</h2>
+      <div id="transferLogs"></div>
+      <button onclick="closeModal()" id="closeModal" style="display:none">OK</button>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      loadCampaigns();
+    });
+
+    async function loadCampaigns() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/allcampaigns`);
+        if (!response.ok) throw new Error("Failed to fetch campaigns.");
+
+        const campaigns = await response.json();
+        const selector = document.getElementById("campaignSelector");
+        selector.innerHTML = '<option value="">Select a Campaign</option>';
+
+        campaigns.forEach((c) => {
+          const option = document.createElement("option");
+          option.value = c.campaign_id;
+          option.textContent = c.name;
+          selector.appendChild(option);
+        });
+      } catch (error) {
+        console.error("❌ Failed to load campaigns:", error);
+        alert("Could not load campaigns.");
+      }
+    }
+
+    async function sendRefund() {
+      const campaignId = document.getElementById("campaignSelector").value;
+      const recipient = document.getElementById("recipientWallet").value.trim();
+      const amount = parseFloat(document.getElementById("refundAmount").value.trim());
+      const sourceWallet = document.getElementById("sourceWallet").value.trim();
+      const token = getToken();
+
+      if (!campaignId || !recipient || isNaN(amount) || amount <= 0 || !sourceWallet) {
+        alert("Please fill in all fields correctly.");
+        return;
+      }
+
+      openModal();
+      logToModal("🔄 Sending refund...");
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/send-refund`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ campaign_id: campaignId, recipient, amount, sourceWallet })
+        });
+
+        const result = await res.json();
+
+        if (!res.ok || !result.success) {
+          throw new Error(result.message || "Refund failed");
+        }
+
+        logToModal(`✅ Refund sent successfully. TX: <a target="_blank" href="https://explorer.solana.com/tx/${result.transaction_hash}?cluster=mainnet">${result.transaction_hash}</a>`);
+        showCloseModalButton();
+
+      } catch (err) {
+        logToModal(`❌ Error: ${err.message}`, "error");
+        showCloseModalButton();
+      }
+    }
+
+    function openModal() {
+      document.getElementById("customModal").style.display = "flex";
+      document.getElementById("transferLogs").innerHTML = "";
+      hideCloseModalButton();
+    }
+
+    function closeModal() {
+      document.getElementById("customModal").style.display = "none";
+    }
+
+    function logToModal(msg, type = "info") {
+      const entry = document.createElement("div");
+      entry.className = `log-entry ${type}`;
+      entry.innerHTML = msg;
+      document.getElementById("transferLogs").appendChild(entry);
+    }
+
+    function showCloseModalButton() {
+      document.getElementById("closeModal").style.display = "block";
+    }
+
+    function hideCloseModalButton() {
+      document.getElementById("closeModal").style.display = "none";
+    }
+  </script>
+</body>
+</html>
+

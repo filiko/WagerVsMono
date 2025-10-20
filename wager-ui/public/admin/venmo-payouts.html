@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Venmo Payout Requests</title>
+  <link rel="stylesheet" href="distribute.css" />
+  <script src="config.js" defer></script>
+  <script src="checkAuth.js" defer></script>
+</head>
+<body>
+  <div class="top-bar">
+    <button class="admin-btn" onclick="adminUrl()">Admin Portal</button>
+    <button class="admin-btn" onclick="logout()">Logout</button>
+  </div>
+
+  <div class="container">
+    <h2>Pending Venmo Payout Requests</h2>
+    <table id="payoutTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Username</th>
+          <th>Amount</th>
+          <th>Source</th>
+          <th>Date</th>
+          <th>Mark as Paid</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      const token = getToken();
+      if (!token) return checkAuth();
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/venmo-payouts-store`, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          }
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to load");
+
+        const tbody = document.querySelector("#payoutTable tbody");
+        tbody.innerHTML = "";
+
+        data.forEach(row => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${row.id}</td>
+            <td>${row.username || "-"}</td>
+            <td>$${row.amount}</td>
+            <td>${row.source}</td>
+            <td>${new Date(row.created_at).toLocaleString()}</td>
+            <td><button onclick="markPaid(${row.id})">✅ Mark Paid</button></td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+      } catch (err) {
+        alert(`❌ Error loading data: ${err.message}`);
+        console.error("Venmo fetch error:", err);
+      }
+    });
+
+    async function markPaid(id) {
+      const token = getToken();
+      if (!confirm(`Mark Venmo payout #${id} as paid?`)) return;
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/mark-venmo-paid/${id}`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          }
+        });
+
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || "Failed to update");
+
+        alert("✅ Marked as paid.");
+        location.reload();
+
+      } catch (err) {
+        alert(`❌ Error marking as paid: ${err.message}`);
+      }
+    }
+  </script>
+</body>
+</html>
+

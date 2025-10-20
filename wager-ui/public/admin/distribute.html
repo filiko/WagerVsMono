@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Distribution Overview</title>
+    <link rel="stylesheet" href="distribute.css" />
+    <script src="config.js" defer></script> <!-- ✅ Load Global Config -->
+    <script src="checkAuth.js" defer></script> <!-- ✅ Load Global Config -->
+</head>
+
+<body>
+
+    <!-- ✅ Admin Portal Button -->
+    <div class="top-bar">
+        <button class="admin-btn" onclick="adminUrl()">Admin
+            Portal</button>
+        <button class="admin-btn" onclick="logout()">Logout</button>
+    </div>
+
+    <div class="container">
+        <h2>Distribution Overview</h2>
+
+        <!-- ✅ Campaign Selector -->
+        <label for="campaignSelector">Select Campaign:</label>
+        <select id="campaignSelector" onchange="loadCampaignPools()">
+            <option value="">Select a Campaign</option>
+        </select>
+
+        <div class="table-auto">
+            <!-- ✅ Main Distribution Table -->
+            <table>
+                <thead>
+                    <tr>
+                        <th>Candidate</th>
+                        <th>Total Pool ($VSCHIP)</th>
+                        <th>Total Pool ($VS)</th>
+                        <th>Total Pool </th>
+                        <th>Winner</th>
+                        <th>Completed</th>
+                        <th>Completion Date</th>
+                    </tr>
+                </thead>
+                <tbody id="distributionTable">
+                    <!-- Rows will be dynamically inserted here -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ✅ Wager Details Button (Initially Hidden) -->
+        <button id="wagerDetailsBtn" style="display: none;" onclick="toggleWagerDetails()">Wager Details</button>
+
+        <!-- ✅ Wallet Wagers Table (Hidden) -->
+        <h2 id="wagerDetailsHeader" style="display: none;">Wager Details</h2>
+        <div class="details-table-container" id="wagerDetailsContainer" style="display: none;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Wallet</th>
+                        <th>Candidate</th>
+                        <th>Waged</th>
+                        <th>Winnings</th>
+                        <th>Send</th>
+                        <th>Send - Fee </th>
+                    </tr>
+                </thead>
+                <tbody id="walletWagersTable">
+                    <!-- Rows inserted dynamically -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ✅ Campaign Done Button -->
+        <button id="campaignDoneBtn" onclick="markCampaignDone()">Campaign Done</button>
+
+    </div>
+    <!-- ✅ Modal HTML -->
+    <div id="customModal" class="modal">
+        <div class="modal-content">
+            <h2>Don't Refresh the Page</h2>
+
+            <div id="transferLogs"></div>
+            <button onclick="closeModal()" id="closeModal" style="display:none">oK</button>
+
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
+        integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
+        crossorigin="anonymous"></script>
+
+
+
+    <!-- ✅ Modal JavaScript -->
+    <script>
+
+        function openModal() {
+            document.getElementById("customModal").style.display = "flex";
+            document.getElementById("transferLogs").innerHTML = "";
+            hideCloseModalButton()
+        }
+
+        function showCloseModalButton() {
+            document.getElementById("closeModal").style.display = "block";
+        }
+
+        function hideCloseModalButton() {
+            document.getElementById("closeModal").style.display = "none";
+        }
+
+        function closeModal() {
+            document.getElementById("customModal").style.display = "none";
+            window.location.reload();
+        }
+
+        async function loadCampaigns() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/allcampaigns`);
+                if (!response.ok) throw new Error("Failed to fetch campaigns.");
+
+                const campaigns = await response.json();
+                const selector = document.getElementById("campaignSelector");
+                selector.innerHTML = '<option value="">Select a Campaign</option>';
+
+                campaigns.forEach(campaign => {
+                    const option = document.createElement("option");
+                    option.value = campaign.campaign_id;
+                    option.textContent = campaign.name;
+                    selector.appendChild(option);
+                });
+            } catch (error) {
+                console.error("❌ Error loading campaigns:", error);
+                alert("Failed to load campaigns.");
+            }
+        }
+
+        async function loadCampaignPools() {
+            const campaignId = document.getElementById("campaignSelector").value;
+            if (!campaignId) return;
+            const token = getToken();
+            if (!token) {
+                checkAuth() // ✅ Redirect to login
+            }
+            try {
+                const response = await fetch(`${API_BASE_URL}/campaignTotals?campaign_id=${campaignId}`, {
+                    method: "GET",
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error("Failed to fetch pool data.");
+
+                const data = await response.json();
+                console.log("Campaign Totals Data:", data);
+
+                const leftTotal = Number(data.leftTotal) || 0;
+                const rightTotal = Number(data.rightTotal) || 0;
+                const totalPool = leftTotal + rightTotal;
+
+                const web2leftTotal = Number(data.web2leftTotal) || 0;
+                const web2rightTotal = Number(data.web2rightTotal) || 0;
+                const web2Total = web2leftTotal + web2rightTotal;
+
+                const web3leftTotal = Number(data.web3leftTotal) || 0;
+                const web3rightTotal = Number(data.web3rightTotal) || 0;
+                const web3Total = web3leftTotal + web3rightTotal;
+
+                const tableBody = document.getElementById("distributionTable");
+
+                tableBody.innerHTML = `
+                    <tr data-btn-type="left">
+                        <td>${data.leftButton}</td>
+                        <td class="vschips">${web2leftTotal.toLocaleString()} $VSCHIPS</td>
+                        <td class="vs">${web3leftTotal.toLocaleString()} $VS</td>
+                        <td class="vs"><strong>${leftTotal.toLocaleString()} $VS</strong></td>
+                        <td><input type="radio" name="winner" data-other-vschip="${web2rightTotal}" data-other-vs="${web3rightTotal}" value="${data.leftButton}" ${leftTotal > rightTotal ? 'checked' : ''} onchange="checkConditions()"></td>
+                        <td rowspan="2"><input type="checkbox" class="completed-checkbox" onchange="markCompleted(${campaignId}, this); checkConditions()"></td>
+                        <td rowspan="2" id="completionDate-${campaignId}">N/A</td>
+                    </tr>
+                    <tr data-btn-type="right">
+                        <td>${data.rightButton}</td>
+                        <td class="vschips">${web2rightTotal.toLocaleString()} $VSCHIPS</td>
+                        <td class="vs">${web3rightTotal.toLocaleString()} $VS</td>
+                        <td class="vs"><strong>${rightTotal.toLocaleString()} $VS</strong></td>
+                        <td><input type="radio" name="winner" data-other-vschip="${web2leftTotal}" data-other-vs="${web3leftTotal}" value="${data.rightButton}" ${rightTotal > leftTotal ? 'checked' : ''} onchange="checkConditions()"></td>
+                    </tr>
+                    <tr data-btn-type="draw">
+                        <td>Withdraw</td>
+                        <td colspan="3">Draw Option - No winner selected</td>
+                        <td><input type="radio" name="winner" data-other-vschip="${web3rightTotal}" data-other-vs="${web2rightTotal}" value="draw" onchange="checkConditions()"></td>
+                    </tr>
+                    <tr>
+                        <td>Total Pool</td>
+                        <td class="vschips">${web2Total.toLocaleString()} $VSCHIPS</td>
+                        <td class="vs">${web3Total.toLocaleString()} $VS</td>
+                        <td class="vs" colspan="2"><strong>${totalPool.toLocaleString()} $VS</strong></td>
+                    </tr>
+                `;
+
+            } catch (error) {
+                console.error("❌ Error loading distribution data:", error);
+                alert("Failed to load campaign pools.");
+            }
+        }
+
+        async function loadWalletWagers() {
+            debugger
+            const campaignIdElement = document.getElementById("campaignSelector");
+            if (!campaignIdElement || !campaignIdElement.value) {
+                console.error("Campaign ID element is missing or has no value.");
+                return;
+            }
+            const campaignId = campaignIdElement.value;
+
+            const winnerElement = document.querySelector('input[name="winner"]:checked');
+            if (!winnerElement) {
+                console.error("No winner selected.");
+                return;
+            }
+
+            const winner = winnerElement.value;
+
+            const web3loserPoolAmount = parseFloat(winnerElement.getAttribute('data-other-vs')) || 0;
+            const web2loserPoolAmount = parseFloat(winnerElement.getAttribute('data-other-vschip')) || 0;
+            console.log("Winner:", winner);
+            console.log("web3loserPoolAmount Pool Amount:", web3loserPoolAmount);
+            console.log("web2loserPoolAmount Pool Amount:", web2loserPoolAmount);
+
+
+            // Further processing based on `campaignId`, `winner`, and `loserPoolAmount`
+            const token = getToken();
+
+            if (!token) {
+                checkAuth() // ✅ Redirect to login
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/walletWagers?campaign_id=${campaignId}`, {
+                    method: "GET",
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error("Failed to fetch wallet wagers.");
+
+                const data = await response.json();
+                const tableBody = document.getElementById("walletWagersTable");
+                if (!tableBody) {
+                    console.error("Wallet wagers table element is missing.");
+                    return;
+                }
+                tableBody.innerHTML = "";
+
+                const leftTotalElement = document.querySelector('#distributionTable tr:nth-child(1) td:nth-child(4)');
+                const rightTotalElement = document.querySelector('#distributionTable tr:nth-child(2) td:nth-child(4)');
+                if (!leftTotalElement || !rightTotalElement) {
+                    console.error("Distribution table elements are missing.");
+                    return;
+                }
+
+                const leftTotal = Number(leftTotalElement.textContent.replace(/[^0-9.-]+/g, ""));
+                const rightTotal = Number(rightTotalElement.textContent.replace(/[^0-9.-]+/g, ""));
+                let loserTotal = web3loserPoolAmount + web2loserPoolAmount;
+
+                var totalWagedOnWeb3Winner, totalWagedOnWeb2Winner = 0;
+
+                if (winner !== "draw") {
+
+                    totalWagedOnWeb2Winner = data.filter(row => row.candidate === winner && row.payment_method === "VSCHIP").reduce((sum, row) => sum + Number(row.total_waged), 0);
+                    totalWagedOnWeb3Winner = data.filter(row => row.candidate === winner && row.payment_method === "VS").reduce((sum, row) => sum + Number(row.total_waged), 0);
+
+                }
+
+                data.forEach(row => {
+                    const waged = Number(row.total_waged);
+                    let web2winnings = 0;
+                    let web3winnings = 0;
+                    let sendAmount = waged;
+
+                    if (winner !== "draw") {
+                        // debugger
+                        if (row.candidate === winner) {
+                            if (row.payment_method === "VSCHIP") {
+
+                                web2winnings = waged + (waged / totalWagedOnWeb2Winner) * web2loserPoolAmount;
+                                sendAmount = web2winnings;
+                            } else if (row.payment_method === "VS") {
+                                //share
+                                web3winnings = waged + (waged / totalWagedOnWeb3Winner) * web3loserPoolAmount;
+                                sendAmount = web3winnings;
+                            }
+                        } else {
+                            sendAmount = 0;
+                        }
+                    }
+
+                    const feeAdjustedAmount = sendAmount - (sendAmount * (DISTRIBUTION_FEE_PERCENTAGE / 100));
+
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td>${row.wallet_id}</td>
+                        <td>${row.candidate}</td>
+                        <td>${waged.toFixed(2)} ${row.payment_method}</td>
+                        <td>${row.payment_method === "VS" ? web3winnings.toFixed(2) : web2winnings.toFixed(2)} ${row.payment_method}</td>
+                        <td>${sendAmount.toFixed(2)} ${row.payment_method}</td>
+                        <td>${feeAdjustedAmount.toFixed(2)} ${row.payment_method}</td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+
+
+            } catch (error) {
+                console.error("❌ Error loading wallet wagers:", error);
+                alert("Failed to load wallet wagers.");
+            }
+        }
+
+        // ✅ Ensure this function is called after selecting a campaign
+        document.getElementById("campaignSelector").addEventListener("change", loadCampaignPools);
+
+        function markCompleted(campaignId, checkbox) {
+            const completionDateCell = document.getElementById(`completionDate-${campaignId}`);
+            if (checkbox.checked) {
+                const now = new Date();
+                completionDateCell.innerText = now.toLocaleDateString() + " " + now.toLocaleTimeString();
+            } else {
+                completionDateCell.innerText = "N/A";
+            }
+        }
+
+        function checkConditions() {
+            const winnerSelected = document.querySelector('input[name="winner"]:checked');
+            const completedChecked = document.querySelector('.completed-checkbox:checked');
+            const button = document.getElementById("wagerDetailsBtn");
+
+            if (winnerSelected && completedChecked) {
+                button.style.display = "block";
+            } else {
+                button.style.display = "none";
+            }
+        }
+
+        function toggleWagerDetails() {
+            const header = document.getElementById("wagerDetailsHeader");
+            const container = document.getElementById("wagerDetailsContainer");
+            const isHidden = header.style.display === "none";
+
+            header.style.display = isHidden ? "block" : "none";
+            container.style.display = isHidden ? "block" : "none";
+
+            if (isHidden) {
+                loadWalletWagers();
+            }
+        }
+
+        // function resetCampaign() {
+        //     document.getElementById("campaignSelector").value = "";
+        //     document.getElementById("distributionTable").innerHTML = "";
+        //     document.getElementById("walletWagersTable").innerHTML = "";
+        //     document.getElementById("wagerDetailsHeader").style.display = "none";
+        //     document.getElementById("wagerDetailsContainer").style.display = "none";
+        //     document.getElementById("wagerDetailsBtn").style.display = "none";
+        // }
+
+        // ✅ Mark Campaign as Done
+        async function markCampaignDone() {
+            const campaignIdElement = document.getElementById("campaignSelector");
+            if (!campaignIdElement || !campaignIdElement.value) {
+                logToModal("❌ Campaign ID is missing or invalid.", "error");
+                return;
+            }
+            const campaignId = campaignIdElement.value;
+
+            const winnerElement = document.querySelector('input[name="winner"]:checked');
+            if (!winnerElement) {
+                logToModal("❌ No winner selected.", "error");
+                return;
+            }
+
+            const winnerRow = winnerElement.closest("tr");
+            if (!winnerRow) {
+                logToModal("❌ Error detecting winner.", "error");
+                return;
+            }
+
+            const winningSide = winnerRow.getAttribute("data-btn-type"); // left / right / draw
+            const winner = winnerElement.value;
+            const loserPoolAmount = parseFloat(winnerElement.getAttribute('data-other-vs')) || 0;
+
+            console.log("📌 Winner:", winner);
+            console.log("📌 Loser Pool Amount:", loserPoolAmount);
+
+            const token = getToken();
+            if (!token) {
+                checkAuth(); // ✅ Redirect to login if no token found
+                return;
+            }
+
+            try {
+                debugger
+                // ✅ Show Modal & Log Start
+                openModal();
+                logToModal("🔄 Marking campaign as done...");
+
+                // ✅ Step 1: Mark Campaign as Done
+                await apiRequest(`${API_BASE_URL}/mark-campaign-done`, {
+                    campaign_id: campaignId,
+                    winner: winner,
+                    winning_side: winningSide
+                }, "✅ Campaign marked as done!");
+
+                // ✅ Step 2: Handle Draw Case
+                if (winner === "draw") {
+                    await processDrawCase(campaignId, token);
+                    return;
+                }
+
+                // ✅ Step 3: Handle Loser to Winner Transfers
+                if (loserPoolAmount > 0) {
+                    await handleLoserToWinnerTransfers(campaignId, winner, winningSide, token);
+                }
+
+                // ✅ Step 4: Send SOL to Winner Wallet
+                await handleSolTransfer(campaignId, winner, winningSide, "winner", token);
+
+                logToModal("✅ Waiting 20 seconds to ensure winner wallet have sol in it...");
+                await delay(30000)
+                // ✅ Step 5: Distribute Tokens to Winners
+                await distributeTokensToWinners(campaignId, winner, winningSide, token);
+
+                // ✅ Disable Button & Show Close Option
+                document.getElementById("campaignDoneBtn").disabled = true;
+                showCloseModalButton();
+
+            } catch (error) {
+                logToModal(`❌ Error processing campaign: ${error.message}`, "error");
+                showCloseModalButton();
+            }
+        }
+
+        // ✅ Process Draw Case
+        async function processDrawCase(campaignId, token) {
+            try {
+                console.log(`⚖️ Processing draw case for campaign: ${campaignId}`);
+
+                // ✅ Step 1: Send SOL to Both Wallets
+                await apiRequest(`${API_BASE_URL}/draw/send-sol`, { campaign_id: campaignId }, "✅ SOL sent successfully! Waiting 30 seconds before sending VS tokens...");
+                await delay(30000);
+
+                // ✅ Step 2: Process Remaining VS Token Distributions
+                await processRemainingDistributions(campaignId, token);
+
+                document.getElementById("campaignDoneBtn").disabled = true;
+                showCloseModalButton();
+
+            } catch (error) {
+                logToModal(`❌ Error processing draw case: ${error.message}`, "error");
+                showCloseModalButton()
+            }
+        }
+
+        // ✅ Handle Transfers from Loser to Winner
+        async function handleLoserToWinnerTransfers(campaignId, winner, winningSide, token) {
+            await handleSolTransfer(campaignId, winner, winningSide, "loser", token);
+            logToModal("✅ Waiting 30 seconds before transferring tokens from loser to winner...");
+            await delay(30000);
+
+            await apiRequest(`${API_BASE_URL}/transfer-losser-to-winner`, {
+                campaign_id: campaignId,
+                winner: winner,
+                winning_side: winningSide
+            }, "✅ Transfer from loser to winner completed!");
+
+            await delay(4000);
+        }
+
+        // ✅ Send SOL to Wallet (Loser or Winner)
+        async function handleSolTransfer(campaignId, winner, winningSide, senderSide, token) {
+            logToModal(`🔄 Transferring SOL to ${senderSide} wallet...`);
+
+            const response = await apiRequest(`${API_BASE_URL}/send-sol`, {
+                campaign_id: campaignId,
+                winner: winner,
+                winning_side: winningSide,
+                sender_side: senderSide
+            });
+
+            if (!response.success) {
+                throw new Error(`❌ Failed to transfer SOL to ${senderSide} wallet.`);
+            }
+
+            logToModal(`✅ SOL transferred to ${senderSide} wallet (TX: ${response.transaction_hash})`);
+        }
+
+        // ✅ Distribute Tokens to Winners
+        async function distributeTokensToWinners(campaignId, winner, winningSide, token) {
+            logToModal("🔄 Distributing tokens to winners...");
+
+            while (true) {
+                try {
+                    const response = await apiRequest(`${API_BASE_URL}/transfer-winner-to-winners`, {
+                        campaign_id: campaignId,
+                        winner: winner,
+                        winning_side: winningSide
+                    });
+
+                    if (response.transaction_hash === "Failed") {
+                        logToModal(`⚠️ Transfer Failed for <strong>${response.recipient}</strong>. Moving to next...`, "warning");
+                    } else {
+                        logToModal(`✅ Sent ${response.amount} SPL tokens to <strong>${response.recipient}</strong>. Remaining: ${response.remaining_distributions}`, "success");
+                    }
+
+                    if (response.remaining_distributions === 0) {
+                        logToModal("🎉 All distributions completed!", "success");
+                        break;
+                    }
+
+                    logToModal(`⚠️ ${response.remaining_distributions} distributions left!`);
+                    await delay(30000);
+
+                } catch (error) {
+                    logToModal(`❌ Error processing winner transfer: ${error.message}`, "error");
+                    await delay(2000);
+                }
+            }
+        }
+
+        // ✅ Process Remaining VS Token Distributions
+        async function processRemainingDistributions(campaignId, token) {
+            while (true) {
+                try {
+
+                    logToModal("⏳ Checking for remaining distributions...");
+                    await delay(10000);
+
+                    const response = await apiRequest(`${API_BASE_URL}/draw/send-vs`, { campaign_id: campaignId });
+
+                    if (response.transaction_hash === "Failed") {
+                        logToModal(`⚠️ Transfer Failed for <strong>${response.recipient}</strong>. Moving to next...`, "warning");
+                    } else {
+                        logToModal(`✅ Sent ${response.amount} SPL tokens to <strong>${response.recipient}</strong>. Remaining: ${response.remaining_distributions}`, "success");
+                    }
+
+                    if (response.remaining_distributions === 0) {
+                        logToModal("✅ All VS tokens sent successfully!", "success");
+                        break;
+                    }
+
+
+                } catch (error) {
+                    logToModal(`❌ Error processing VS token distribution: ${error.message}`, "error");
+                    await delay(2000);
+                }
+            }
+        }
+
+        // ✅ API Request Helper Function
+        async function apiRequest(url, body, successMessage = null) {
+            const token = getToken();
+            if (!token) {
+                checkAuth();
+                throw new Error("❌ Authentication required.");
+            }
+
+            const response = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify(body)
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(`❌ API Error: ${JSON.stringify(data)}`);
+            }
+
+            if (successMessage) {
+                logToModal(successMessage);
+            }
+
+            return data;
+        }
+
+        // ✅ Utility Function: Log to Modal
+        function logToModal(message, type = "info") {
+            const logContainer = document.getElementById("transferLogs");
+            const logEntry = document.createElement("div");
+            logEntry.innerHTML = message;
+            logEntry.classList.add("log-entry", type);
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // ✅ Utility Function: Delay Execution
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        document.addEventListener("DOMContentLoaded", loadCampaigns);
+    </script>
+
+</body>
+
+</html>
