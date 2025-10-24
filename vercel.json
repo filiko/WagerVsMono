@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "wager-backend/src/index.ts",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["wager-backend/**"]
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "wager-backend/src/index.ts"
+    },
+    {
+      "src": "/admin/(.*)",
+      "dest": "wager-backend/src/index.ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "wager-ui/$1"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "functions": {
+    "wager-backend/src/index.ts": {
+      "maxDuration": 30
+    }
+  }
+}

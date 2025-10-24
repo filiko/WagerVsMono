@@ -8,15 +8,15 @@ const cors_1 = __importDefault(require("cors"));
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
-const client_1 = require("@prisma/client");
+const supabase_1 = require("./lib/supabase");
 const auth_1 = __importDefault(require("./routes/auth"));
 const admin_1 = __importDefault(require("./routes/admin"));
 const legacy_1 = __importDefault(require("./routes/legacy"));
+const predictions_1 = __importDefault(require("./routes/predictions"));
 const auth_2 = require("./middleware/auth");
 // Load environment variables
 dotenv_1.default.config();
 const app = (0, express_1.default)();
-const prisma = new client_1.PrismaClient();
 const PORT = process.env.PORT || 5000;
 // Middleware
 app.use((0, cors_1.default)({
@@ -29,25 +29,27 @@ app.use((0, cookie_parser_1.default)());
 app.use("/api/auth", auth_1.default);
 app.use("/api/admin", admin_1.default);
 app.use("/api", legacy_1.default);
+app.use("/api/predictions", predictions_1.default);
 // Protected route example
 app.get("/api/profile", auth_2.authenticateToken, async (req, res) => {
     try {
-        const user = await prisma.user.findUnique({
-            where: { id: req.user.id },
-            select: {
-                id: true,
-                email: true,
-                name: true,
-                avatar: true,
-                role: true,
-                createdAt: true,
-                lastLogin: true,
-            },
-        });
-        if (!user) {
+        const { data: user, error } = await supabase_1.supabaseAdmin
+            .from('users')
+            .select('id, email, name, avatar, role, created_at, last_login')
+            .eq('id', req.user.id)
+            .single();
+        if (error || !user) {
             return res.status(404).json({ error: "User not found" });
         }
-        res.json(user);
+        res.json({
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            avatar: user.avatar,
+            role: user.role,
+            createdAt: user.created_at,
+            lastLogin: user.last_login,
+        });
     }
     catch (error) {
         console.error("Profile error:", error);
@@ -57,7 +59,8 @@ app.get("/api/profile", auth_2.authenticateToken, async (req, res) => {
 // Health check
 app.get("/api/health", (req, res) => {
     res.json({
-        status: process.env.DATABASE_URL,
+        status: process.env.SUPABASE_URL ? "connected" : "disconnected",
+        database: "supabase",
         timestamp: new Date().toISOString(),
     });
 });
@@ -78,11 +81,11 @@ app.listen(PORT, () => {
 });
 // Graceful shutdown
 process.on("SIGINT", async () => {
-    await prisma.$disconnect();
+    console.log("Shutting down gracefully...");
     process.exit(0);
 });
 process.on("SIGTERM", async () => {
-    await prisma.$disconnect();
+    console.log("Shutting down gracefully...");
     process.exit(0);
 });
 //# sourceMappingURL=index.js.map

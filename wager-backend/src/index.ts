@@ -3,7 +3,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import path from "path";
-import { PrismaClient } from "@prisma/client";
+import { supabaseAdmin } from "./lib/supabase";
 import authRoutes from "./routes/auth";
 import adminRoutes from "./routes/admin";
 import legacyRoutes from "./routes/legacy";
@@ -14,7 +14,6 @@ import { authenticateToken } from "./middleware/auth";
 dotenv.config();
 
 const app = express();
-const prisma = new PrismaClient();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
@@ -36,24 +35,25 @@ app.use("/api/predictions", predictionsRoutes);
 // Protected route example
 app.get("/api/profile", authenticateToken, async (req: any, res) => {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        avatar: true,
-        role: true,
-        createdAt: true,
-        lastLogin: true,
-      },
-    });
+    const { data: user, error } = await supabaseAdmin
+      .from('users')
+      .select('id, email, name, avatar, role, created_at, last_login')
+      .eq('id', req.user.id)
+      .single();
 
-    if (!user) {
+    if (error || !user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    res.json(user);
+    res.json({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      avatar: user.avatar,
+      role: user.role,
+      createdAt: user.created_at,
+      lastLogin: user.last_login,
+    });
   } catch (error) {
     console.error("Profile error:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -63,7 +63,8 @@ app.get("/api/profile", authenticateToken, async (req: any, res) => {
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({
-    status: process.env.DATABASE_URL,
+    status: process.env.SUPABASE_URL ? "connected" : "disconnected",
+    database: "supabase",
     timestamp: new Date().toISOString(),
   });
 });
@@ -97,11 +98,11 @@ app.listen(PORT, () => {
 
 // Graceful shutdown
 process.on("SIGINT", async () => {
-  await prisma.$disconnect();
+  console.log("Shutting down gracefully...");
   process.exit(0);
 });
 
 process.on("SIGTERM", async () => {
-  await prisma.$disconnect();
+  console.log("Shutting down gracefully...");
   process.exit(0);
 });

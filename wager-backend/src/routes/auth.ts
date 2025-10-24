@@ -1,11 +1,10 @@
 import { Router } from "express";
 import { OAuth2Client } from "google-auth-library";
 import jwt from "jsonwebtoken";
-import { PrismaClient } from "@prisma/client";
+import { supabaseAdmin } from "../lib/supabase";
 import { authenticateToken } from "../middleware/auth";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 const client = new OAuth2Client({
   clientId: process.env.GOOGLE_CLIENT_ID,
@@ -46,40 +45,64 @@ router.post("/google", async (req, res) => {
 
     const { email, name, picture, id } = userInfo;
 
-    let user = await prisma.user.findUnique({ where: { email } });
+    let { data: user, error: findError } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (findError && findError.code !== 'PGRST116') {
+      throw findError;
+    }
+
     if (!user) {
-      user = await prisma.user.create({
-        data: {
+      const { data: newUser, error: createError } = await supabaseAdmin
+        .from('users')
+        .insert({
           email,
           name,
           avatar: picture,
-          googleId: id,
+          google_id: id,
           provider: "google",
-        },
-      });
+        })
+        .select()
+        .single();
+      
+      if (createError) throw createError;
+      user = newUser;
     } else {
       // Update existing user with Google info if not already linked
-      if (!user.googleId) {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            googleId: id,
+      if (!user.google_id) {
+        const { data: updatedUser, error: updateError } = await supabaseAdmin
+          .from('users')
+          .update({
+            google_id: id,
             provider: "google",
             name: user.name || name,
             avatar: user.avatar || picture,
-            lastLogin: new Date(),
-          },
-        });
+            last_login: new Date().toISOString(),
+          })
+          .eq('id', user.id)
+          .select()
+          .single();
+        
+        if (updateError) throw updateError;
+        user = updatedUser;
       } else {
         // Update last login for existing Google user
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            lastLogin: new Date(),
+        const { data: updatedUser, error: updateError } = await supabaseAdmin
+          .from('users')
+          .update({
+            last_login: new Date().toISOString(),
             name: user.name || name,
             avatar: user.avatar || picture,
-          },
-        });
+          })
+          .eq('id', user.id)
+          .select()
+          .single();
+        
+        if (updateError) throw updateError;
+        user = updatedUser;
       }
     }
 
@@ -138,47 +161,78 @@ router.get("/google/callback", async (req, res) => {
     }
 
     // Upsert user in DB
-    let user = await prisma.user.findUnique({ where: { googleId } });
+    let { data: user, error: findError } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('google_id', googleId)
+      .single();
+
+    if (findError && findError.code !== 'PGRST116') {
+      throw findError;
+    }
 
     if (!user) {
       // If user with this googleId not found, maybe a user exists with same email — link
-      user = await prisma.user.findUnique({ where: { email } });
+      const { data: existingUser, error: emailError } = await supabaseAdmin
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
 
-      if (user) {
+      if (emailError && emailError.code !== 'PGRST116') {
+        throw emailError;
+      }
+
+      if (existingUser) {
         // link googleId
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            googleId,
+        const { data: updatedUser, error: updateError } = await supabaseAdmin
+          .from('users')
+          .update({
+            google_id: googleId,
             provider: "google",
-            lastLogin: new Date(),
-            name: user.name || name,
-            avatar: user.avatar || picture,
-          },
-        });
+            last_login: new Date().toISOString(),
+            name: existingUser.name || name,
+            avatar: existingUser.avatar || picture,
+          })
+          .eq('id', existingUser.id)
+          .select()
+          .single();
+        
+        if (updateError) throw updateError;
+        user = updatedUser;
       } else {
         // create new user
-        user = await prisma.user.create({
-          data: {
-            googleId,
+        const { data: newUser, error: createError } = await supabaseAdmin
+          .from('users')
+          .insert({
+            google_id: googleId,
             email,
             name,
             avatar: picture,
             provider: "google",
-            lastLogin: new Date(),
-          },
-        });
+            last_login: new Date().toISOString(),
+          })
+          .select()
+          .single();
+        
+        if (createError) throw createError;
+        user = newUser;
       }
     } else {
       // existing google user — update lastLogin/profile
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          lastLogin: new Date(),
+      const { data: updatedUser, error: updateError } = await supabaseAdmin
+        .from('users')
+        .update({
+          last_login: new Date().toISOString(),
           name: user.name || name,
           avatar: user.avatar || picture,
-        },
-      });
+        })
+        .eq('id', user.id)
+        .select()
+        .single();
+      
+      if (updateError) throw updateError;
+      user = updatedUser;
     }
 
     // TODO: store refresh_token if you requested offline access and need long-term Google API access:
@@ -235,14 +289,15 @@ router.post("/solana", async (req, res) => {
     // For now, we'll trust the wallet connection and create/update user
 
     // Check if user exists with this Solana public key
-    let user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { solanaPublicKey: publicKey },
-          { googleId: null, email: null }, // Fallback for users without email
-        ],
-      },
-    });
+    let { data: user, error: findError } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('solana_public_key', publicKey)
+      .single();
+
+    if (findError && findError.code !== 'PGRST116') {
+      throw findError;
+    }
 
     if (!user) {
       // Create new user with Solana wallet
@@ -252,15 +307,20 @@ router.post("/solana", async (req, res) => {
         firstLetter
       )}&background=9A2BD8&color=ffffff&size=96`;
 
-      user = await prisma.user.create({
-        data: {
-          solanaPublicKey: publicKey,
+      const { data: newUser, error: createError } = await supabaseAdmin
+        .from('users')
+        .insert({
+          solana_public_key: publicKey,
           name: username,
           avatar: avatarUrl,
           provider: "solana",
-          lastLogin: new Date(),
-        },
-      });
+          last_login: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      
+      if (createError) throw createError;
+      user = newUser;
     } else {
       // Update existing user
       const fallbackUsername = `Solana User ${publicKey.slice(0, 8)}`;
@@ -271,18 +331,23 @@ router.post("/solana", async (req, res) => {
         firstLetter
       )}&background=9A2BD8&color=ffffff&size=96`;
 
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          solanaPublicKey: publicKey,
+      const { data: updatedUser, error: updateError } = await supabaseAdmin
+        .from('users')
+        .update({
+          solana_public_key: publicKey,
           provider: "solana",
-          lastLogin: new Date(),
+          last_login: new Date().toISOString(),
           // If user has no avatar yet, set a generated one so UI can render immediately
           avatar: user.avatar ?? generatedAvatar,
           // If user has no name yet, set a fallback username based on wallet
           name: user.name ?? fallbackUsername,
-        },
-      });
+        })
+        .eq('id', user.id)
+        .select()
+        .single();
+      
+      if (updateError) throw updateError;
+      user = updatedUser;
     }
 
     // Generate JWT token
