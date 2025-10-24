@@ -19,5 +19,10 @@
     "src/index.ts": {
       "maxDuration": 30
     }
+  },
+  "build": {
+    "env": {
+      "NODE_ENV": "production"
+    }
   }
 }
