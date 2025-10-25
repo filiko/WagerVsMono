@@ -3,22 +3,19 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import path from "path";
-import { supabaseAdmin } from "./lib/supabase";
+import { PrismaClient } from "@prisma/client";
 import authRoutes from "./routes/auth";
-import adminRoutes from "./routes/admin";
-import legacyRoutes from "./routes/legacy";
-import predictionsRoutes from "./routes/predictions";
-import wagersRoutes from "./routes/wagers";
+import wagerRoutes from "./routes/wager";
 import walletRoutes from "./routes/wallet";
+import prizeRoutes from "./routes/prize";
 import { authenticateToken } from "./middleware/auth";
 
-// Load environment variables
 dotenv.config();
 
 const app = express();
+const prisma = new PrismaClient();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
 app.use(
   cors({
     origin: process.env.CLIENT_URL || "http://localhost:3000",
@@ -28,57 +25,46 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-// Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api", legacyRoutes);
-app.use("/api/predictions", predictionsRoutes);
-app.use("/api/wagers", wagersRoutes);
-app.use("/api/wallet", walletRoutes);
+app.use("/api/uploads", express.static(path.join(__dirname, "../uploads")));
 
-// Protected route example
+app.use("/api/auth", authRoutes);
+app.use("/api/wagers", wagerRoutes);
+app.use("/api/wallet", walletRoutes);
+app.use("/api", prizeRoutes);
+
 app.get("/api/profile", authenticateToken, async (req: any, res) => {
   try {
-    const { data: user, error } = await supabaseAdmin
-      .from('users')
-      .select('id, email, name, avatar, role, created_at, last_login')
-      .eq('id', req.user.id)
-      .single();
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatar: true,
+        role: true,
+        createdAt: true,
+        lastLogin: true,
+      },
+    });
 
-    if (error || !user) {
+    if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    res.json({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      avatar: user.avatar,
-      role: user.role,
-      createdAt: user.created_at,
-      lastLogin: user.last_login,
-    });
+    res.json(user);
   } catch (error) {
     console.error("Profile error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// Health check
 app.get("/api/health", (req, res) => {
   res.json({
-    status: process.env.SUPABASE_URL ? "connected" : "disconnected",
-    database: "supabase",
+    status: process.env.DATABASE_URL,
     timestamp: new Date().toISOString(),
   });
 });
 
-// Serve static Admin portal from external directory
-const ADMIN_STATIC_DIR = process.env.ADMIN_STATIC_DIR || path.resolve("./admin");
-
-app.use("/admin", express.static(ADMIN_STATIC_DIR, { extensions: ["html"] }));
-
-// Error handling middleware
 app.use(
   (
     err: any,
@@ -91,20 +77,18 @@ app.use(
   }
 );
 
-// Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV}`);
   console.log(`Database URL: ${process.env.DATABASE_URL}`);
 });
 
-// Graceful shutdown
 process.on("SIGINT", async () => {
-  console.log("Shutting down gracefully...");
+  await prisma.$disconnect();
   process.exit(0);
 });
 
 process.on("SIGTERM", async () => {
-  console.log("Shutting down gracefully...");
+  await prisma.$disconnect();
   process.exit(0);
 });

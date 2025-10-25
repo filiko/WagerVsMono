@@ -10,6 +10,7 @@ import { SignUpModal } from "@/components/modals/SignUpModal";
 import { LoginModal } from "@/components/modals/LoginModal";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useSidebar } from "@/components/layout/SidebarProvider";
+import { DailyClaimButton } from "@/components/layout/DailyClaimButton";
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -52,6 +53,7 @@ export function Header() {
             placeholder="Search..."
             className="pl-9 h-12     text-white/90 placeholder:text-white/40 border-white/10 bg-white/5"
           />
+          <div className="ml-3">{user && <DailyClaimButton />}</div>
         </div>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">

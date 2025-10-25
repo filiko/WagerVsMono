@@ -1,127 +1,137 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useMultiChainWallet, ChainType } from "./useMultiChainWallet";
-
-interface BalanceData {
-  balances: Record<string, number>;
-  prices: Record<string, number>;
-  lastUpdated: string;
-}
+import { useAuth } from "@/components/auth/AuthProvider";
 
 interface WalletBalances {
-  [chain: string]: BalanceData;
+  sol: number;
+  usdc: number;
+  vs: number;
 }
 
-export function useWalletBalance() {
-  const [balances, setBalances] = useState<WalletBalances>({});
-  const [loading, setLoading] = useState(false);
-  const { wallet } = useMultiChainWallet();
+interface SolanaInfo {
+  publicKey: string;
+  balance: {
+    sol: number;
+    lamports: number;
+    usd: number;
+  };
+  price: {
+    price: number;
+    currency: string;
+    timestamp: number;
+  };
+  timestamp: number;
+}
 
-  const fetchBalance = useCallback(async (chain: ChainType, address: string) => {
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      const response = await fetch(
-        `${apiUrl}/api/wallet/balance?address=${address}&chain=${chain}`,
-        {
-          credentials: "include",
-        }
-      );
+interface WalletInfo {
+  hasWallet: boolean;
+  publicKey: string | null;
+  balances: WalletBalances;
+  solana: SolanaInfo | null;
+  user: {
+    id: number;
+    name: string | null;
+    email: string | null;
+  };
+}
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch balance for ${chain}`);
-      }
+export const useWalletBalance = () => {
+  const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { user, loading: authLoading } = useAuth();
 
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error(`Error fetching balance for ${chain}:`, error);
-      return null;
+  const fetchWalletInfo = useCallback(async () => {
+    if (!user) {
+      setWalletInfo(null);
+      setLoading(false);
+      setError(null);
+      return;
     }
-  }, []);
 
-  const fetchPrices = useCallback(async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      const response = await fetch(`${apiUrl}/api/wallet/prices`, {
+      setLoading(true);
+      setError(null);
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      const response = await fetch(`${apiUrl}/api/wallet/info`, {
+        method: "GET",
         credentials: "include",
       });
 
       if (!response.ok) {
-        throw new Error("Failed to fetch prices");
+        if (response.status === 401) {
+          setWalletInfo(null);
+          setError(null);
+          return;
+        }
+        throw new Error("Failed to fetch wallet info");
       }
 
       const data = await response.json();
-      return data.prices;
-    } catch (error) {
-      console.error("Error fetching prices:", error);
-      return null;
-    }
-  }, []);
-
-  const refreshBalances = useCallback(async () => {
-    if (!wallet.connected || !wallet.address || !wallet.chain) {
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const [balanceData, prices] = await Promise.all([
-        fetchBalance(wallet.chain, wallet.address),
-        fetchPrices(),
-      ]);
-
-      if (balanceData) {
-        setBalances((prev) => ({
-          ...prev,
-          [wallet.chain]: {
-            ...balanceData,
-            prices: prices?.[wallet.chain] || {},
-          },
-        }));
-      }
-    } catch (error) {
-      console.error("Error refreshing balances:", error);
+      setWalletInfo(data);
+    } catch (err) {
+      console.error("Error fetching wallet info:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch wallet info"
+      );
     } finally {
       setLoading(false);
     }
-  }, [wallet.connected, wallet.address, wallet.chain, fetchBalance, fetchPrices]);
+  }, [user]);
 
-  // Auto-refresh when wallet connects
-  useEffect(() => {
-    if (wallet.connected && wallet.address && wallet.chain) {
-      refreshBalances();
-    }
-  }, [wallet.connected, wallet.address, wallet.chain, refreshBalances]);
+  const updateBalances = useCallback(
+    async (balances: Partial<WalletBalances>) => {
+      try {
+        const apiUrl =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+        const response = await fetch(`${apiUrl}/api/wallet/balances`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify(balances),
+        });
 
-  // Auto-refresh prices every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      if (wallet.connected && wallet.chain) {
-        try {
-          const prices = await fetchPrices();
-          if (prices) {
-            setBalances((prev) => ({
-              ...prev,
-              [wallet.chain]: {
-                ...prev[wallet.chain],
-                prices: prices[wallet.chain] || {},
-                lastUpdated: new Date().toISOString(),
-              },
-            }));
-          }
-        } catch (error) {
-          console.error("Error auto-refreshing prices:", error);
+        if (!response.ok) {
+          throw new Error("Failed to update balances");
         }
-      }
-    }, 30000);
 
-    return () => clearInterval(interval);
-  }, [wallet.connected, wallet.chain, fetchPrices]);
+        const data = await response.json();
+
+        if (walletInfo) {
+          setWalletInfo({
+            ...walletInfo,
+            balances: data.balances,
+          });
+        }
+
+        return data;
+      } catch (err) {
+        console.error("Error updating balances:", err);
+        throw err;
+      }
+    },
+    [walletInfo]
+  );
+
+  const refreshBalances = useCallback(() => {
+    fetchWalletInfo();
+  }, [fetchWalletInfo]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      fetchWalletInfo();
+    }
+  }, [fetchWalletInfo, authLoading]);
 
   return {
-    balances,
+    walletInfo,
     loading,
+    error,
     refreshBalances,
+    updateBalances,
   };
-}
+};

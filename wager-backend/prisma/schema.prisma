@@ -1,52 +1,86 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
-model User {
-  id              String    @id @default(cuid())
-  email           String?   @unique
+model transaction {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  walletId        Int
+  wagerId         Int?
+  type            String
+  currency        String
+  amount          Float
+  vsAmount        Float
+  solPrice        Float?
+  usdValue        Float?
+  status          String   @default("completed")
+  transactionHash String?
+  side            String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime
+  user            user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet          wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  wager           wager?   @relation(fields: [wagerId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([walletId])
+  @@index([wagerId])
+}
+
+model user {
+  id              Int           @id @default(autoincrement())
+  googleId        String?       @unique
+  email           String?       @unique
+  password        String?
   name            String?
   avatar          String?
-  googleId        String?   @unique
-  solanaPublicKey String?   @unique
-  provider        String?   // "google" | "solana"
-  role            String    @default("user") // "user" | "admin"
+  provider        String        @default("google")
+  role            String        @default("user")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime
   lastLogin       DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  // Relations
-  aiPredictionLogs AiPredictionLog[]
-
-  @@map("users")
+  solanaPublicKey String?       @unique
+  transaction     transaction[]
+  wager           wager[]
+  wallet          wallet?
 }
 
-model AiPredictionLog {
-  id               Int       @id @default(autoincrement())
-  wagerId          String
-  title            String
-  confidencePct    Float?
-  modelProvider    String
-  modelName        String
-  modelVersion     String?
-  createdUtc       DateTime
-  serverReceivedUtc DateTime
-  appEnv           String
-  cid0g            String?
-  integritySha256  String?
-  createdAt        DateTime  @default(now())
+model wager {
+  id           Int           @id @default(autoincrement())
+  name         String
+  description  String?
+  imageUrl     String?
+  category     String
+  side1        String
+  side2        String
+  wagerEndTime DateTime
+  isPublic     Boolean       @default(true)
+  winningSide  String?
+  wagerStatus  String        @default("active")
+  side1Amount  Float         @default(0)
+  side2Amount  Float         @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime
+  createdById  Int
+  user         user          @relation(fields: [createdById], references: [id])
+  transaction  transaction[]
 
-  // Relations
-  user             User?     @relation(fields: [userId], references: [id])
-  userId           String?
+  @@index([createdById])
+}
 
-  @@map("ai_prediction_logs")
+model wallet {
+  id          Int           @id @default(autoincrement())
+  userId      Int           @unique
+  solAmount   Float         @default(0)
+  usdcAmount  Float         @default(0)
+  vsAmount    Float         @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime
+  transaction transaction[]
+  user        user          @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

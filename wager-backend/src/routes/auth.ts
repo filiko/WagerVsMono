@@ -1,10 +1,12 @@
 import { Router } from "express";
 import { OAuth2Client } from "google-auth-library";
 import jwt from "jsonwebtoken";
-import { supabaseAdmin } from "../lib/supabase";
+import bcrypt from "bcrypt";
+import { PrismaClient } from "@prisma/client";
 import { authenticateToken } from "../middleware/auth";
 
 const router = Router();
+const prisma = new PrismaClient();
 
 const client = new OAuth2Client({
   clientId: process.env.GOOGLE_CLIENT_ID,
@@ -20,7 +22,6 @@ router.post("/google", async (req, res) => {
         .status(400)
         .json({ message: "Missing user info or access token" });
 
-    // Verify the access token with Google
     const response = await fetch(
       `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${accessToken}`
     );
@@ -35,7 +36,6 @@ router.post("/google", async (req, res) => {
       picture: string;
     };
 
-    // Verify that the user info matches what was sent
     if (
       googleUserInfo.id !== userInfo.id ||
       googleUserInfo.email !== userInfo.email
@@ -45,64 +45,41 @@ router.post("/google", async (req, res) => {
 
     const { email, name, picture, id } = userInfo;
 
-    let { data: user, error: findError } = await supabaseAdmin
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .single();
-
-    if (findError && findError.code !== 'PGRST116') {
-      throw findError;
-    }
-
+    let user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      const { data: newUser, error: createError } = await supabaseAdmin
-        .from('users')
-        .insert({
+      user = await prisma.user.create({
+        data: {
           email,
           name,
           avatar: picture,
-          google_id: id,
+          googleId: id,
           provider: "google",
-        })
-        .select()
-        .single();
-      
-      if (createError) throw createError;
-      user = newUser;
+          updatedAt: new Date(),
+        },
+      });
     } else {
-      // Update existing user with Google info if not already linked
-      if (!user.google_id) {
-        const { data: updatedUser, error: updateError } = await supabaseAdmin
-          .from('users')
-          .update({
-            google_id: id,
+      if (!user.googleId) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            googleId: id,
             provider: "google",
             name: user.name || name,
             avatar: user.avatar || picture,
-            last_login: new Date().toISOString(),
-          })
-          .eq('id', user.id)
-          .select()
-          .single();
-        
-        if (updateError) throw updateError;
-        user = updatedUser;
+            lastLogin: new Date(),
+            updatedAt: new Date(),
+          },
+        });
       } else {
-        // Update last login for existing Google user
-        const { data: updatedUser, error: updateError } = await supabaseAdmin
-          .from('users')
-          .update({
-            last_login: new Date().toISOString(),
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            lastLogin: new Date(),
             name: user.name || name,
             avatar: user.avatar || picture,
-          })
-          .eq('id', user.id)
-          .select()
-          .single();
-        
-        if (updateError) throw updateError;
-        user = updatedUser;
+            updatedAt: new Date(),
+          },
+        });
       }
     }
 
@@ -113,7 +90,8 @@ router.post("/google", async (req, res) => {
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.json({ user });
@@ -123,24 +101,20 @@ router.post("/google", async (req, res) => {
   }
 });
 
-// 2) Callback endpoint that receives 'code' from Google
 router.get("/google/callback", async (req, res) => {
   try {
     const code = req.query.code as string | undefined;
     if (!code) return res.status(400).send("Missing code");
 
-    // Exchange code for tokens
     const { tokens } = await client.getToken({
       code,
       redirect_uri: process.env.GOOGLE_REDIRECT_URI,
     });
 
-    // tokens contains: access_token, id_token, refresh_token (maybe)
     const idToken = tokens.id_token;
     if (!idToken)
       return res.status(400).send("No ID token returned from Google");
 
-    // Verify ID token and parse payload
     const ticket = await client.verifyIdToken({
       idToken,
       audience: process.env.GOOGLE_CLIENT_ID,
@@ -160,100 +134,60 @@ router.get("/google/callback", async (req, res) => {
       return res.status(400).send("Email not verified by Google");
     }
 
-    // Upsert user in DB
-    let { data: user, error: findError } = await supabaseAdmin
-      .from('users')
-      .select('*')
-      .eq('google_id', googleId)
-      .single();
-
-    if (findError && findError.code !== 'PGRST116') {
-      throw findError;
-    }
+    let user = await prisma.user.findUnique({ where: { googleId } });
 
     if (!user) {
-      // If user with this googleId not found, maybe a user exists with same email — link
-      const { data: existingUser, error: emailError } = await supabaseAdmin
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .single();
+      user = await prisma.user.findUnique({ where: { email } });
 
-      if (emailError && emailError.code !== 'PGRST116') {
-        throw emailError;
-      }
-
-      if (existingUser) {
-        // link googleId
-        const { data: updatedUser, error: updateError } = await supabaseAdmin
-          .from('users')
-          .update({
-            google_id: googleId,
+      if (user) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            googleId,
             provider: "google",
-            last_login: new Date().toISOString(),
-            name: existingUser.name || name,
-            avatar: existingUser.avatar || picture,
-          })
-          .eq('id', existingUser.id)
-          .select()
-          .single();
-        
-        if (updateError) throw updateError;
-        user = updatedUser;
+            lastLogin: new Date(),
+            name: user.name || name,
+            avatar: user.avatar || picture,
+          },
+        });
       } else {
-        // create new user
-        const { data: newUser, error: createError } = await supabaseAdmin
-          .from('users')
-          .insert({
-            google_id: googleId,
+        user = await prisma.user.create({
+          data: {
+            googleId,
             email,
             name,
             avatar: picture,
             provider: "google",
-            last_login: new Date().toISOString(),
-          })
-          .select()
-          .single();
-        
-        if (createError) throw createError;
-        user = newUser;
+            lastLogin: new Date(),
+            updatedAt: new Date(),
+          },
+        });
       }
     } else {
-      // existing google user — update lastLogin/profile
-      const { data: updatedUser, error: updateError } = await supabaseAdmin
-        .from('users')
-        .update({
-          last_login: new Date().toISOString(),
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          lastLogin: new Date(),
           name: user.name || name,
           avatar: user.avatar || picture,
-        })
-        .eq('id', user.id)
-        .select()
-        .single();
-      
-      if (updateError) throw updateError;
-      user = updatedUser;
+          updatedAt: new Date(),
+        },
+      });
     }
 
-    // TODO: store refresh_token if you requested offline access and need long-term Google API access:
-    // tokens.refresh_token may be present on first consent.
-
-    // Issue our own JWT
     const token = jwt.sign(
       { userId: user.id },
       process.env.JWT_SECRET as string,
       { expiresIn: "7d" }
     );
 
-    // Set HttpOnly cookie
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    // Redirect back to client app (frontend). You can pass state or token if needed; prefer cookie/session.
     return res.redirect(`${process.env.CLIENT_URL}/auth/success`);
   } catch (err: any) {
     console.error("Google callback error:", err);
@@ -261,7 +195,6 @@ router.get("/google/callback", async (req, res) => {
   }
 });
 
-// 3) get current user
 router.get("/me", authenticateToken, (req: any, res) => {
   const u = req.user;
   res.json({
@@ -276,7 +209,6 @@ router.get("/me", authenticateToken, (req: any, res) => {
   });
 });
 
-// 4) Solana wallet authentication
 router.post("/solana", async (req, res) => {
   try {
     const { publicKey, signature, message } = req.body;
@@ -285,44 +217,30 @@ router.post("/solana", async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    // Verify the signature (basic verification - in production, you'd want more robust verification)
-    // For now, we'll trust the wallet connection and create/update user
-
-    // Check if user exists with this Solana public key
-    let { data: user, error: findError } = await supabaseAdmin
-      .from('users')
-      .select('*')
-      .eq('solana_public_key', publicKey)
-      .single();
-
-    if (findError && findError.code !== 'PGRST116') {
-      throw findError;
-    }
+    let user = await prisma.user.findFirst({
+      where: {
+        OR: [{ solanaPublicKey: publicKey }, { googleId: null, email: null }],
+      },
+    });
 
     if (!user) {
-      // Create new user with Solana wallet
       const username = `Solana User ${publicKey.slice(0, 8)}`;
       const firstLetter = username.charAt(0).toUpperCase();
       const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(
         firstLetter
       )}&background=9A2BD8&color=ffffff&size=96`;
 
-      const { data: newUser, error: createError } = await supabaseAdmin
-        .from('users')
-        .insert({
-          solana_public_key: publicKey,
+      user = await prisma.user.create({
+        data: {
+          solanaPublicKey: publicKey,
           name: username,
           avatar: avatarUrl,
           provider: "solana",
-          last_login: new Date().toISOString(),
-        })
-        .select()
-        .single();
-      
-      if (createError) throw createError;
-      user = newUser;
+          lastLogin: new Date(),
+          updatedAt: new Date(),
+        },
+      });
     } else {
-      // Update existing user
       const fallbackUsername = `Solana User ${publicKey.slice(0, 8)}`;
       const firstLetter = (user.name || fallbackUsername)
         .charAt(0)
@@ -331,36 +249,28 @@ router.post("/solana", async (req, res) => {
         firstLetter
       )}&background=9A2BD8&color=ffffff&size=96`;
 
-      const { data: updatedUser, error: updateError } = await supabaseAdmin
-        .from('users')
-        .update({
-          solana_public_key: publicKey,
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          solanaPublicKey: publicKey,
           provider: "solana",
-          last_login: new Date().toISOString(),
-          // If user has no avatar yet, set a generated one so UI can render immediately
+          lastLogin: new Date(),
           avatar: user.avatar ?? generatedAvatar,
-          // If user has no name yet, set a fallback username based on wallet
           name: user.name ?? fallbackUsername,
-        })
-        .eq('id', user.id)
-        .select()
-        .single();
-      
-      if (updateError) throw updateError;
-      user = updatedUser;
+          updatedAt: new Date(),
+        },
+      });
     }
 
-    // Generate JWT token
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, {
       expiresIn: "7d",
     });
 
-    // Set HTTP-only cookie
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.json({ user });
@@ -370,13 +280,150 @@ router.post("/solana", async (req, res) => {
   }
 });
 
-// 5) logout
 router.post("/logout", (req, res) => {
   res.clearCookie("token", {
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     secure: process.env.NODE_ENV === "production",
   });
   res.json({ message: "Logged out" });
+});
+
+// Manual sign up route
+router.post("/signup", async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+
+    // Validate input
+    if (!email || !password) {
+      return res
+        .status(400)
+        .json({ message: "Email and password are required" });
+    }
+
+    if (password.length < 6) {
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 6 characters long" });
+    }
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      return res
+        .status(400)
+        .json({ message: "User with this email already exists" });
+    }
+
+    // Hash password
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Create user
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name: name || null,
+        provider: "manual",
+        updatedAt: new Date(),
+      },
+    });
+
+    // Generate JWT token
+    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, {
+      expiresIn: "7d",
+    });
+
+    // Set cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    // Return user data (without password)
+    const { password: _, ...userWithoutPassword } = user;
+    res.status(201).json({
+      message: "User created successfully",
+      user: userWithoutPassword,
+    });
+  } catch (error) {
+    console.error("Signup error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// Manual login route
+router.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate input
+    if (!email || !password) {
+      return res
+        .status(400)
+        .json({ message: "Email and password are required" });
+    }
+
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    // Check if user has a password (manual signup)
+    if (!user.password) {
+      return res.status(401).json({
+        message:
+          "This account was created with social login. Please use Google or Solana login.",
+      });
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    // Update last login
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        lastLogin: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    // Generate JWT token
+    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, {
+      expiresIn: "7d",
+    });
+
+    // Set cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    // Return user data (without password)
+    const { password: _, ...userWithoutPassword } = user;
+    res.json({
+      message: "Login successful",
+      user: userWithoutPassword,
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 });
 
 export default router;

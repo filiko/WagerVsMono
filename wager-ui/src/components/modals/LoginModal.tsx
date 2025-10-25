@@ -52,13 +52,35 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
       return;
     }
     try {
-      console.log("Manual login:", { identifier });
+      setConnecting("google"); // Use as loading state
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-      await login();
-      onOpenChange(false);
+      const response = await fetch(`${apiUrl}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          email: identifier,
+          password: password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success("Login successful!");
+        await login(); // Refresh auth state
+        onOpenChange(false);
+      } else {
+        toast.error(data.message || "Login failed. Please try again.");
+      }
     } catch (err) {
       console.error(err);
       toast.error("Login failed. Please try again.");
+    } finally {
+      setConnecting(null);
     }
   };
 

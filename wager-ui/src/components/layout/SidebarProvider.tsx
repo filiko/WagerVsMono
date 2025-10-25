@@ -13,12 +13,8 @@ const SidebarContext = React.createContext<SidebarContextValue | undefined>(
   undefined
 );
 
-export function SidebarProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const [isOpen, setIsOpen] = React.useState(false);
+export function SidebarProvider({ children }: { children: React.ReactNode }) {
+  const [isOpen, setIsOpen] = React.useState(true);
 
   const open = React.useCallback(() => setIsOpen(true), []);
   const close = React.useCallback(() => setIsOpen(false), []);
@@ -41,4 +37,3 @@ export function useSidebar(): SidebarContextValue {
   }
   return ctx;
 }
-

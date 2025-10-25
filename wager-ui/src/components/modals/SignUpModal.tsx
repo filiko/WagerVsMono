@@ -83,13 +83,43 @@ export function SignUpModal({ open, onOpenChange }: SignUpModalProps) {
       toast.error("Passwords do not match.");
       return;
     }
+    if (password.length < 6) {
+      toast.error("Password must be at least 6 characters long.");
+      return;
+    }
     try {
-      console.log("Manual sign up:", { email, username });
-      await login();
-      onOpenChange(false);
+      setConnecting("evm"); // Use as loading state
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+      const response = await fetch(`${apiUrl}/api/auth/signup`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          email: email,
+          password: password,
+          name: username,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success("Account created successfully!");
+        await login(); // Refresh auth state
+        onOpenChange(false);
+      } else {
+        toast.error(
+          data.message || "Failed to create account. Please try again."
+        );
+      }
     } catch (err) {
       console.error(err);
       toast.error("Failed to sign up. Please try again.");
+    } finally {
+      setConnecting(null);
     }
   };
 

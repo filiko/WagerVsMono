@@ -1,275 +1,495 @@
-import { Router } from "express";
+import express from "express";
+import { PrismaClient } from "@prisma/client";
 import { authenticateToken } from "../middleware/auth";
+import {
+  getSolBalance,
+  getSolUsdPrice,
+  hasSufficientBalance,
+  getWalletInfo,
+} from "../services/solanaService";
 
-const router = Router();
+const router = express.Router();
+const prisma = new PrismaClient();
+const DAILY_CLAIM_AMOUNT = 2000; // VS tokens per daily claim
 
-type ChainType = "solana" | "ethereum" | "polygon" | "arbitrum" | "base";
+function isSameUtcDay(a: Date, b: Date) {
+  return (
+    a.getUTCFullYear() === b.getUTCFullYear() &&
+    a.getUTCMonth() === b.getUTCMonth() &&
+    a.getUTCDate() === b.getUTCDate()
+  );
+}
 
-// POST /api/wallet/connect - Connect multi-chain wallet
-router.post("/connect", async (req, res) => {
+router.get("/daily-status", authenticateToken, async (req: any, res) => {
   try {
-    const { address, chain } = req.body;
-    
-    if (!address || !chain) {
-      return res.status(400).json({ error: "Address and chain are required" });
-    }
-
-    // Validate chain type
-    const validChains: ChainType[] = ["solana", "ethereum", "polygon", "arbitrum", "base"];
-    if (!validChains.includes(chain)) {
-      return res.status(400).json({ error: "Invalid chain type" });
-    }
-
-    // TODO: Store wallet connection in database
-    // For now, just return success
-    console.log(`Wallet connected: ${chain} - ${address}`);
-    
-    res.json({ 
-      success: true, 
-      message: `${chain} wallet connected successfully`,
-      address,
-      chain
+    const lastClaim = await prisma.transaction.findFirst({
+      where: { userId: req.user.id, type: "daily_claim" },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
     });
-  } catch (error) {
-    console.error("Error connecting wallet:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
 
-// POST /api/wallet/disconnect - Disconnect wallet (protected)
-router.post("/disconnect", authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user?.id;
-    
-    if (!userId) {
-      return res.status(401).json({ error: "User not authenticated" });
-    }
+    const now = new Date();
+    const eligible =
+      !lastClaim || !isSameUtcDay(new Date(lastClaim.createdAt), now);
 
-    // TODO: Clear wallet connection in database
-    res.json({ 
-      success: true, 
-      message: "Wallet disconnected successfully" 
-    });
-  } catch (error) {
-    console.error("Error disconnecting wallet:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
+    // Next reset is next UTC midnight
+    const nextReset = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + 1,
+        0,
+        0,
+        0
+      )
+    );
 
-// GET /api/wallet/balance - Get multi-chain wallet balance
-router.get("/balance", async (req, res) => {
-  try {
-    const { address, chain } = req.query;
-    
-    if (!address || !chain) {
-      return res.status(400).json({ error: "Address and chain are required" });
-    }
-
-    // Mock balance data for now
-    // In production, you'd query blockchain APIs (Alchemy, Infura, etc.)
-    const mockBalances: Record<ChainType, any> = {
-      solana: {
-        sol: 2.5,
-        usdc: 100,
-      },
-      ethereum: {
-        eth: 0.5,
-        usdc: 500,
-        usdt: 250,
-      },
-      polygon: {
-        matic: 50,
-        usdc: 300,
-        usdt: 150,
-      },
-      arbitrum: {
-        eth: 0.3,
-        usdc: 200,
-        usdt: 100,
-      },
-      base: {
-        eth: 0.2,
-        usdc: 150,
-      },
-    };
-
-    const balances = mockBalances[chain as ChainType] || {};
-    
     res.json({
-      address,
-      chain,
-      balances,
-      lastUpdated: new Date().toISOString()
+      eligible,
+      lastClaimAt: lastClaim?.createdAt ?? null,
+      nextResetAt: nextReset.toISOString(),
+      amount: DAILY_CLAIM_AMOUNT,
     });
   } catch (error) {
-    console.error("Error fetching wallet balance:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("Daily status error:", error);
+    res.status(500).json({ error: "Failed to get daily status" });
   }
 });
 
-// POST /api/wallet/purchase - Process token purchase
-router.post("/purchase", async (req, res) => {
+router.post("/daily-claim", authenticateToken, async (req: any, res) => {
   try {
-    const { amount, currency, chain, vsAmount, transactionSignature } = req.body;
-    
-    if (!amount || !currency || !chain || !vsAmount) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-
-    // Validate transaction signature
-    if (!transactionSignature) {
-      return res.status(400).json({ error: "Transaction signature required" });
-    }
-
-    console.log(`Purchase request:`, {
-      amount,
-      currency,
-      chain,
-      vsAmount,
-      transactionSignature: transactionSignature.substring(0, 16) + "...",
+    const lastClaim = await prisma.transaction.findFirst({
+      where: { userId: req.user.id, type: "daily_claim" },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
     });
 
-    // TODO: Verify transaction on blockchain
-    // TODO: Credit user's VS token balance in database
-    
-    // For now, simulate successful purchase
-    const purchaseId = `purchase_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    
+    const now = new Date();
+    if (lastClaim && isSameUtcDay(new Date(lastClaim.createdAt), now)) {
+      return res.status(400).json({ error: "Already claimed today" });
+    }
+
+    let wallet = await prisma.wallet.findUnique({
+      where: { userId: req.user.id },
+    });
+    if (!wallet) {
+      wallet = await prisma.wallet.create({
+        data: {
+          userId: req.user.id,
+          solAmount: 0,
+          usdcAmount: 0,
+          vsAmount: 20000 + DAILY_CLAIM_AMOUNT, // include signup bonus if created now
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      wallet = await prisma.wallet.update({
+        where: { userId: req.user.id },
+        data: {
+          vsAmount: wallet.vsAmount + DAILY_CLAIM_AMOUNT,
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    await prisma.transaction.create({
+      data: {
+        userId: req.user.id,
+        walletId: wallet.id,
+        type: "daily_claim",
+        currency: "VS",
+        amount: 0,
+        vsAmount: DAILY_CLAIM_AMOUNT,
+        status: "completed",
+        updatedAt: new Date(),
+      },
+    });
+
     res.json({
       success: true,
-      purchaseId,
-      amount,
-      currency,
-      chain,
-      vsAmount,
-      transactionSignature,
-      status: "completed",
-      timestamp: new Date().toISOString()
+      amount: DAILY_CLAIM_AMOUNT,
+      balances: {
+        sol: wallet.solAmount,
+        usdc: wallet.usdcAmount,
+        vs: wallet.vsAmount,
+      },
     });
   } catch (error) {
-    console.error("Error processing purchase:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("Daily claim error:", error);
+    res.status(500).json({ error: "Failed to claim daily tokens" });
   }
 });
 
-// GET /api/wallet/prices - Get current crypto prices
-router.get("/prices", async (req, res) => {
+router.post("/connect", authenticateToken, async (req: any, res) => {
   try {
-    // Mock price data
-    // In production, fetch from CoinGecko, CoinMarketCap, or DEX aggregators
-    const prices = {
-      solana: {
-        sol: 180.50,
-        usdc: 1.00,
-      },
-      ethereum: {
-        eth: 3500.00,
-        usdc: 1.00,
-        usdt: 1.00,
-      },
-      polygon: {
-        matic: 0.85,
-        usdc: 1.00,
-        usdt: 1.00,
-      },
-      arbitrum: {
-        eth: 3500.00,
-        usdc: 1.00,
-        usdt: 1.00,
-      },
-      base: {
-        eth: 3500.00,
-        usdc: 1.00,
-      },
-    };
+    const { publicKey } = req.body;
 
-    res.json({
-      prices,
-      lastUpdated: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error("Error fetching prices:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-// GET /api/wallet/transactions - Get user transaction history
-router.get("/transactions", authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user?.id;
-    
-    if (!userId) {
-      return res.status(401).json({ error: "User not authenticated" });
+    if (!publicKey) {
+      return res.status(400).json({ error: "Public key is required" });
     }
 
-    const { chain, limit = 10 } = req.query;
-
-    // TODO: Fetch from database
-    // Mock transaction history
-    const mockTransactions = [
-      {
-        id: "tx_1",
-        type: "purchase",
-        chain: "solana",
-        currency: "SOL",
-        amount: 0.5,
-        vsAmount: 18000,
-        status: "completed",
-        timestamp: new Date(Date.now() - 3600000).toISOString(),
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        solanaPublicKey: publicKey,
+        updatedAt: new Date(),
       },
-      {
-        id: "tx_2",
-        type: "purchase",
-        chain: "ethereum",
-        currency: "ETH",
-        amount: 0.1,
-        vsAmount: 70000,
-        status: "completed",
-        timestamp: new Date(Date.now() - 86400000).toISOString(),
-      },
-    ];
+    });
 
-    const filteredTransactions = chain
-      ? mockTransactions.filter((tx) => tx.chain === chain)
-      : mockTransactions;
+    let wallet = await prisma.wallet.findUnique({
+      where: { userId: user.id },
+    });
+
+    if (wallet) {
+      try {
+        const solanaInfo = await getWalletInfo(publicKey);
+        await prisma.wallet.update({
+          where: { id: wallet.id },
+          data: {
+            solAmount: solanaInfo.balance.sol,
+            updatedAt: new Date(),
+          },
+        });
+      } catch (error) {
+        console.error(
+          "Error updating SOL balance after wallet connection:",
+          error
+        );
+      }
+    }
 
     res.json({
-      transactions: filteredTransactions.slice(0, Number(limit)),
-      total: filteredTransactions.length,
+      success: true,
+      message: "Wallet connected successfully",
+      user: {
+        id: user.id,
+        solanaPublicKey: user.solanaPublicKey,
+      },
     });
   } catch (error) {
-    console.error("Error fetching transactions:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("Connect wallet error:", error);
+    res.status(500).json({ error: "Failed to connect wallet" });
   }
 });
 
-// POST /api/wallet/verify-transaction - Verify blockchain transaction
-router.post("/verify-transaction", async (req, res) => {
+router.get("/info", authenticateToken, async (req: any, res) => {
   try {
-    const { transactionSignature, chain } = req.body;
-    
-    if (!transactionSignature || !chain) {
-      return res.status(400).json({ error: "Transaction signature and chain are required" });
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        solanaPublicKey: true,
+        name: true,
+        email: true,
+        wallet: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
     }
 
-    // TODO: Implement actual blockchain verification
-    // For Solana: use @solana/web3.js Connection.getTransaction()
-    // For EVM chains: use ethers.js provider.getTransaction()
-    
-    console.log(`Verifying transaction: ${chain} - ${transactionSignature}`);
-    
-    // Mock verification response
+    let wallet = user.wallet;
+    if (!wallet) {
+      let initialSolAmount = 0;
+
+      if (user.solanaPublicKey) {
+        try {
+          const solanaInfo = await getWalletInfo(user.solanaPublicKey);
+          initialSolAmount = solanaInfo.balance.sol;
+        } catch (error) {
+          console.error("Error fetching SOL balance for new wallet:", error);
+        }
+      }
+
+      wallet = await prisma.wallet.create({
+        data: {
+          userId: user.id,
+          solAmount: initialSolAmount,
+          usdcAmount: 0,
+          vsAmount: 20000, // Give new users 20,000 VS tokens
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    let solanaInfo = null;
+    if (user.solanaPublicKey) {
+      try {
+        solanaInfo = await getWalletInfo(user.solanaPublicKey);
+        console.log(
+          `API Response - SOL Price: $${solanaInfo.price.price}, Balance: ${solanaInfo.balance.sol} SOL`
+        );
+      } catch (error) {
+        console.error("Error fetching Solana balance:", error);
+      }
+    }
+
     res.json({
-      verified: true,
-      chain,
-      transactionSignature,
-      status: "confirmed",
-      blockNumber: 12345678,
-      timestamp: new Date().toISOString()
+      hasWallet: !!user.solanaPublicKey,
+      publicKey: user.solanaPublicKey,
+      balances: {
+        sol: wallet.solAmount,
+        usdc: wallet.usdcAmount,
+        vs: wallet.vsAmount,
+      },
+      solana: solanaInfo,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+      },
     });
   } catch (error) {
-    console.error("Error verifying transaction:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("Get wallet info error:", error);
+    res.status(500).json({ error: "Failed to get wallet info" });
+  }
+});
+
+router.post("/purchase", authenticateToken, async (req: any, res) => {
+  try {
+    const { amount, currency, vsAmount, transactionSignature } = req.body;
+
+    if (!amount || !currency || !vsAmount) {
+      return res.status(400).json({
+        error: "Amount, currency, and vsAmount are required",
+      });
+    }
+
+    if (!req.user.solanaPublicKey) {
+      return res.status(400).json({
+        error: "Solana wallet not connected",
+      });
+    }
+
+    let wallet = await prisma.wallet.findUnique({
+      where: { userId: req.user.id },
+    });
+
+    if (!wallet) {
+      let initialSolAmount = 0;
+
+      if (req.user.solanaPublicKey) {
+        try {
+          const solanaInfo = await getWalletInfo(req.user.solanaPublicKey);
+          initialSolAmount = solanaInfo.balance.sol;
+        } catch (error) {
+          console.error("Error fetching SOL balance for new wallet:", error);
+        }
+      }
+
+      wallet = await prisma.wallet.create({
+        data: {
+          userId: req.user.id,
+          solAmount: initialSolAmount,
+          usdcAmount: 0,
+          vsAmount: 20000, // Give new users 20,000 VS tokens
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    let updatedWallet;
+    let solanaInfo = null;
+
+    if (currency === "SOL") {
+      const requiredSol = parseFloat(amount);
+      const hasBalance = await hasSufficientBalance(
+        req.user.solanaPublicKey,
+        requiredSol
+      );
+
+      if (!hasBalance) {
+        return res.status(400).json({
+          error: "Insufficient SOL balance for this purchase",
+        });
+      }
+
+      if (!transactionSignature) {
+        return res.status(400).json({
+          error: "Transaction signature is required for SOL purchases",
+        });
+      }
+
+      const solPrice = await getSolUsdPrice();
+      const solUsdValue = requiredSol * solPrice.price;
+
+      updatedWallet = await prisma.wallet.update({
+        where: { userId: req.user.id },
+        data: {
+          vsAmount: wallet.vsAmount + parseFloat(vsAmount),
+        },
+      });
+
+      await prisma.transaction.create({
+        data: {
+          userId: req.user.id,
+          walletId: wallet.id,
+          type: "purchase",
+          currency: "SOL",
+          amount: requiredSol,
+          vsAmount: parseFloat(vsAmount),
+          solPrice: solPrice.price,
+          usdValue: solUsdValue,
+          status: "completed",
+          transactionHash:
+            typeof transactionSignature === "string"
+              ? transactionSignature
+              : transactionSignature?.signature || null,
+          updatedAt: new Date(),
+        },
+      });
+
+      solanaInfo = await getWalletInfo(req.user.solanaPublicKey);
+
+      console.log("SOL purchase completed:", {
+        userId: req.user.id,
+        walletAddress: req.user.solanaPublicKey,
+        solAmount: requiredSol,
+        solUsdValue,
+        vsAmount,
+        currentSolBalance: solanaInfo.balance.sol,
+        solPrice: solPrice.price,
+      });
+    } else {
+      if (wallet.usdcAmount < parseFloat(amount)) {
+        return res.status(400).json({
+          error: "Insufficient USDC balance for this purchase",
+        });
+      }
+
+      updatedWallet = await prisma.wallet.update({
+        where: { userId: req.user.id },
+        data: {
+          vsAmount: wallet.vsAmount + parseFloat(vsAmount),
+          usdcAmount: Math.max(0, wallet.usdcAmount - parseFloat(amount)),
+        },
+      });
+
+      await prisma.transaction.create({
+        data: {
+          userId: req.user.id,
+          walletId: wallet.id,
+          type: "purchase",
+          currency: "USDC",
+          amount: parseFloat(amount),
+          vsAmount: parseFloat(vsAmount),
+          usdValue: parseFloat(amount),
+          status: "completed",
+          updatedAt: new Date(),
+        },
+      });
+
+      console.log("USDC purchase completed:", {
+        userId: req.user.id,
+        walletAddress: req.user.solanaPublicKey,
+        usdcAmount: parseFloat(amount),
+        vsAmount,
+        newBalances: {
+          sol: updatedWallet.solAmount,
+          usdc: updatedWallet.usdcAmount,
+          vs: updatedWallet.vsAmount,
+        },
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Successfully purchased ${vsAmount} $VS tokens`,
+      balances: {
+        sol: updatedWallet.solAmount,
+        usdc: updatedWallet.usdcAmount,
+        vs: updatedWallet.vsAmount,
+      },
+      solana: solanaInfo,
+      transaction: {
+        id: `tx_${Date.now()}`,
+        amount,
+        currency,
+        vsAmount,
+        walletAddress: req.user.solanaPublicKey,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("Purchase tokens error:", error);
+    res.status(500).json({ error: "Failed to purchase tokens" });
+  }
+});
+
+router.get("/transactions", authenticateToken, async (req: any, res) => {
+  try {
+    const transactions = await prisma.transaction.findMany({
+      where: { userId: req.user.id },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    });
+
+    res.json({
+      success: true,
+      transactions,
+    });
+  } catch (error) {
+    console.error("Get transactions error:", error);
+    res.status(500).json({ error: "Failed to get transactions" });
+  }
+});
+
+router.put("/balances", authenticateToken, async (req: any, res) => {
+  try {
+    const { solAmount, usdcAmount, vsAmount } = req.body;
+
+    let wallet = await prisma.wallet.findUnique({
+      where: { userId: req.user.id },
+    });
+
+    if (!wallet) {
+      let initialSolAmount = 0;
+
+      if (req.user.solanaPublicKey) {
+        try {
+          const solanaInfo = await getWalletInfo(req.user.solanaPublicKey);
+          initialSolAmount = solanaInfo.balance.sol;
+        } catch (error) {
+          console.error("Error fetching SOL balance for new wallet:", error);
+        }
+      }
+
+      wallet = await prisma.wallet.create({
+        data: {
+          userId: req.user.id,
+          solAmount: initialSolAmount,
+          usdcAmount: 0,
+          vsAmount: 20000, // Give new users 20,000 VS tokens
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    const updatedWallet = await prisma.wallet.update({
+      where: { userId: req.user.id },
+      data: {
+        solAmount:
+          solAmount !== undefined ? parseFloat(solAmount) : wallet.solAmount,
+        usdcAmount:
+          usdcAmount !== undefined ? parseFloat(usdcAmount) : wallet.usdcAmount,
+        vsAmount:
+          vsAmount !== undefined ? parseFloat(vsAmount) : wallet.vsAmount,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: "Wallet balances updated successfully",
+      balances: {
+        sol: updatedWallet.solAmount,
+        usdc: updatedWallet.usdcAmount,
+        vs: updatedWallet.vsAmount,
+      },
+    });
+  } catch (error) {
+    console.error("Update balances error:", error);
+    res.status(500).json({ error: "Failed to update balances" });
   }
 });
 

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { CreatePredictionModal } from "@/components/modals/CreatePredictionModal";
 import { BuyTokensModal } from "@/components/modals/BuyTokensModal";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
+import { useSidebar } from "@/components/layout/SidebarProvider";
 
 export function Sidebar() {
   const [open, setOpen] = React.useState(false);
@@ -15,6 +16,7 @@ export function Sidebar() {
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const pathname = usePathname();
   const { walletInfo, loading, refreshBalances } = useWalletBalance();
+  const { isOpen: sidebarOpen } = useSidebar();
 
   const handlePurchaseComplete = React.useCallback(async () => {
     setIsRefreshing(true);
@@ -23,14 +25,25 @@ export function Sidebar() {
   }, [refreshBalances]);
 
   const Category = ({ icon, label }: { icon: string; label: string }) => (
-    <button className="flex flex-col items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-3 text-xs text-white/80 hover:bg-white/[.08]">
+    <button
+      type="button"
+      className="group relative overflow-hidden flex flex-col items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-3 text-xs text-white/80 hover:bg-white/[.08]"
+    >
       <Image src={`/icon/${icon}.svg`} alt="" width={32} height={32} />
       <span>{label}</span>
+      {/* Hover overlay: Coming soon */}
+      <div className="pointer-events-none absolute inset-0 hidden items-center justify-center bg-black/60 text-white text-xs font-semibold group-hover:flex rounded-md">
+        Coming soon
+      </div>
     </button>
   );
 
   return (
-    <aside className="hidden sticky top-[112px] h-[calc(100vh-112px)] overflow-y-auto sidebar-scroll shrink-0 border border-white/10 bg-gradient-to-b from-[#1b1d33] to-[#11131f] md:block py-6">
+    <aside
+      className={`${
+        sidebarOpen ? "block" : "hidden"
+      } sticky top-[112px] h-[calc(100vh-112px)] overflow-y-auto sidebar-scroll shrink-0 border border-white/10 bg-gradient-to-b from-[#1b1d33] to-[#11131f] py-6`}
+    >
       <div className="flex flex-col gap-4">
         <div className="border-white/10 p-6">
           <div className="flex items-center justify-between bg-white/5 py-3 px-4 rounded-md">
@@ -110,7 +123,7 @@ export function Sidebar() {
             }`}
           >
             <Image src="/icon/ai.svg" alt="" width={24} height={24} />
-            <span>WagerAI</span>
+            <span>WVS AI (Coming soon)</span>
           </Link>
         </nav>
 
