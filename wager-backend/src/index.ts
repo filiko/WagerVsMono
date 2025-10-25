@@ -8,6 +8,8 @@ import authRoutes from "./routes/auth";
 import adminRoutes from "./routes/admin";
 import legacyRoutes from "./routes/legacy";
 import predictionsRoutes from "./routes/predictions";
+import wagersRoutes from "./routes/wagers";
+import walletRoutes from "./routes/wallet";
 import { authenticateToken } from "./middleware/auth";
 
 // Load environment variables
@@ -31,6 +33,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api", legacyRoutes);
 app.use("/api/predictions", predictionsRoutes);
+app.use("/api/wagers", wagersRoutes);
+app.use("/api/wallet", walletRoutes);
 
 // Protected route example
 app.get("/api/profile", authenticateToken, async (req: any, res) => {
@@ -70,9 +74,7 @@ app.get("/api/health", (req, res) => {
 });
 
 // Serve static Admin portal from external directory
-const ADMIN_STATIC_DIR =
-  process.env.ADMIN_STATIC_DIR ||
-  path.resolve("C:\\Users\\jafil\\Documents\\GitHub\\WagerVSDev_Testing\\admin");
+const ADMIN_STATIC_DIR = process.env.ADMIN_STATIC_DIR || path.resolve("./admin");
 
 app.use("/admin", express.static(ADMIN_STATIC_DIR, { extensions: ["html"] }));
 

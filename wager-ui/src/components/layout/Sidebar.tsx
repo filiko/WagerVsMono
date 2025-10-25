@@ -110,7 +110,7 @@ export function Sidebar() {
             }`}
           >
             <Image src="/icon/ai.svg" alt="" width={24} height={24} />
-            <span>WVS AI (Coming soon)</span>
+            <span>WagerAI</span>
           </Link>
         </nav>
 

@@ -17,16 +17,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import Image from "next/image";
-import { useSolanaWallet } from "@/hooks/useSolanaWallet";
+import { useMultiChainWallet } from "@/hooks/useMultiChainWallet";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { toast } from "react-toastify";
-import {
-  Connection,
-  PublicKey,
-  Transaction,
-  SystemProgram,
-  LAMPORTS_PER_SOL,
-} from "@solana/web3.js";
 
 interface BuyTokensModalProps {
   open: boolean;
@@ -34,181 +27,156 @@ interface BuyTokensModalProps {
   onPurchaseComplete?: () => void;
 }
 
+type ChainType = "solana" | "ethereum" | "polygon" | "arbitrum" | "base";
+type CurrencyType = "SOL" | "ETH" | "MATIC" | "USDC" | "USDT";
+
 export function BuyTokensModal({
   open,
   onOpenChange,
   onPurchaseComplete,
 }: BuyTokensModalProps) {
-  const [usdAmount, setUsdAmount] = React.useState("0");
+  const [amount, setAmount] = React.useState("0");
   const [vsAmount, setVsAmount] = React.useState("0");
-  const [selectedCurrency, setSelectedCurrency] = React.useState("SOL");
+  const [selectedChain, setSelectedChain] = React.useState<ChainType>("solana");
+  const [selectedCurrency, setSelectedCurrency] = React.useState<CurrencyType>("SOL");
   const [isPurchasing, setIsPurchasing] = React.useState(false);
 
-  const { wallet, connectWallet, isPhantomInstalled, forceReconnect } =
-    useSolanaWallet();
-  const { walletInfo, refreshBalances } = useWalletBalance();
-  const conversionRate = 20000;
+  const { wallet, connectWallet, disconnectWallet, sendTransaction } = useMultiChainWallet();
+  const { balances, refreshBalances } = useWalletBalance();
+  const conversionRate = 20000; // VS tokens per USD
 
-  const ADMIN_WALLET_ADDRESS = "Bga4DjWmDXDaodXcDVr4EzEXSDT78vgmacSrf9zZw6b5";
-  const connection = new Connection(
-    "https://api.devnet.solana.com",
-    "confirmed"
-  );
+  const ADMIN_ADDRESSES = {
+    solana: "Bga4DjWmDXDaodXcDVr4EzEXSDT78vgmacSrf9zZw6b5",
+    ethereum: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb4", // Replace with your ETH address
+    polygon: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb4", // Replace with your Polygon address
+    arbitrum: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb4", // Replace with your Arbitrum address
+    base: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb4", // Replace with your Base address
+  };
+
+  const chainConfig = {
+    solana: {
+      name: "Solana",
+      currencies: ["SOL", "USDC"],
+      icon: "⬡",
+    },
+    ethereum: {
+      name: "Ethereum",
+      currencies: ["ETH", "USDC", "USDT"],
+      icon: "Ξ",
+    },
+    polygon: {
+      name: "Polygon",
+      currencies: ["MATIC", "USDC", "USDT"],
+      icon: "⬣",
+    },
+    arbitrum: {
+      name: "Arbitrum",
+      currencies: ["ETH", "USDC", "USDT"],
+      icon: "◆",
+    },
+    base: {
+      name: "Base",
+      currencies: ["ETH", "USDC"],
+      icon: "🔵",
+    },
+  };
+
+  const currencyPrices = React.useMemo(() => ({
+    SOL: balances[selectedChain]?.prices?.native || 0,
+    ETH: balances[selectedChain]?.prices?.native || 0,
+    MATIC: balances[selectedChain]?.prices?.native || 0,
+    USDC: 1,
+    USDT: 1,
+  }), [balances, selectedChain]);
 
   React.useEffect(() => {
-    if (wallet.connected && wallet.publicKey) {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+    if (wallet.connected && wallet.address) {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
       fetch(`${apiUrl}/api/wallet/connect`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          publicKey: wallet.publicKey,
+          address: wallet.address,
+          chain: wallet.chain,
         }),
-      }).catch((error: any) => {
+      }).catch((error) => {
         console.error("Failed to connect wallet to backend:", error);
       });
     }
-  }, [wallet.connected, wallet.publicKey]);
+  }, [wallet.connected, wallet.address, wallet.chain]);
 
-  const handleUsdChange = (value: string) => {
-    setUsdAmount(value);
-    const usd = parseFloat(value) || 0;
-    setVsAmount((usd * conversionRate).toString());
-  };
-
-  const handleVsChange = (value: string) => {
-    setVsAmount(value);
-    const vs = parseFloat(value) || 0;
-    setUsdAmount((vs / conversionRate).toString());
-  };
-
-  const handleSolChange = (value: string) => {
-    setUsdAmount(value);
-    if (walletInfo?.solana?.price?.price) {
-      const solAmount = parseFloat(value) || 0;
-      const usdValue = solAmount * walletInfo.solana.price.price;
-      const vsTokens = usdValue * conversionRate;
-      console.log(
-        `Frontend SOL Conversion: ${solAmount} SOL × $${
-          walletInfo.solana.price.price
-        } = $${usdValue.toFixed(
-          2
-        )} × ${conversionRate} = ${vsTokens.toLocaleString()} VS`
-      );
-      setVsAmount(vsTokens.toString());
+  React.useEffect(() => {
+    const availableCurrencies = chainConfig[selectedChain].currencies;
+    if (!availableCurrencies.includes(selectedCurrency)) {
+      setSelectedCurrency(availableCurrencies[0] as CurrencyType);
     }
+  }, [selectedChain]);
+
+  const handleAmountChange = (value: string) => {
+    setAmount(value);
+    const parsedAmount = parseFloat(value) || 0;
+    const price = currencyPrices[selectedCurrency] || 1;
+    const usdValue = parsedAmount * price;
+    setVsAmount((usdValue * conversionRate).toString());
   };
 
-  const handleQuickBuy = (amount: string) => {
-    setUsdAmount(amount);
-    if (selectedCurrency === "SOL" && walletInfo?.solana?.price?.price) {
-      const solAmount = parseFloat(amount);
-      const usdValue = solAmount * walletInfo.solana.price.price;
-      setVsAmount((usdValue * conversionRate).toString());
-    } else {
-      const usd = parseFloat(amount);
-      setVsAmount((usd * conversionRate).toString());
-    }
-  };
-
-  const sendSolToAdmin = async (solAmount: number) => {
-    try {
-      if (!wallet.publicKey) {
-        throw new Error("Wallet not connected");
-      }
-
-      const fromPubKey = new PublicKey(wallet.publicKey);
-      const toPubKey = new PublicKey(ADMIN_WALLET_ADDRESS);
-
-      const lamports = Math.floor(solAmount * LAMPORTS_PER_SOL);
-
-      const transaction = new Transaction().add(
-        SystemProgram.transfer({
-          fromPubkey: fromPubKey,
-          toPubkey: toPubKey,
-          lamports: lamports,
-        })
-      );
-
-      const { blockhash } = await connection.getLatestBlockhash();
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = fromPubKey;
-
-      const signature = await window.solana!.signAndSendTransaction(
-        transaction
-      );
-
-      console.log("SOL transfer signature:", signature);
-
-      await connection.confirmTransaction(signature);
-
-      return signature;
-    } catch (error) {
-      console.error("Error sending SOL:", error);
-      throw error;
-    }
+  const handleQuickBuy = (quickAmount: string) => {
+    setAmount(quickAmount);
+    const parsedAmount = parseFloat(quickAmount);
+    const price = currencyPrices[selectedCurrency] || 1;
+    const usdValue = parsedAmount * price;
+    setVsAmount((usdValue * conversionRate).toString());
   };
 
   const handleBuy = async () => {
     if (!wallet.connected) {
-      const connected = await connectWallet();
+      const connected = await connectWallet(selectedChain);
       if (!connected) {
         toast.error("Failed to connect wallet. Please try again.");
         return;
       }
     }
 
-    if (!wallet.publicKey) {
-      toast.error("Wallet not connected. Please try the 'Reconnect' button.");
+    if (!wallet.address) {
+      toast.error("Wallet not connected. Please try again.");
+      return;
+    }
+
+    if (wallet.chain !== selectedChain) {
+      toast.error(`Please switch to ${chainConfig[selectedChain].name} network`);
       return;
     }
 
     setIsPurchasing(true);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-      const connectResponse = await fetch(`${apiUrl}/api/wallet/connect`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          publicKey: wallet.publicKey,
-        }),
+      const parsedAmount = parseFloat(amount);
+      if (parsedAmount <= 0) {
+        throw new Error("Invalid amount");
+      }
+
+      // Send transaction to admin wallet
+      const txSignature = await sendTransaction({
+        to: ADMIN_ADDRESSES[selectedChain],
+        amount: parsedAmount,
+        currency: selectedCurrency,
       });
 
-      if (!connectResponse.ok) {
-        throw new Error("Failed to connect wallet to backend");
-      }
+      console.log(`${selectedChain} transaction:`, txSignature);
 
-      let transactionSignature = null;
-
-      if (selectedCurrency === "SOL") {
-        const solAmount = parseFloat(usdAmount);
-
-        const transferResult = await sendSolToAdmin(solAmount);
-        transactionSignature =
-          typeof transferResult === "string"
-            ? transferResult
-            : (transferResult as any)?.signature;
-        console.log("SOL transfer completed:", transactionSignature);
-      }
-
+      // Register purchase with backend
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
       const purchaseResponse = await fetch(`${apiUrl}/api/wallet/purchase`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          amount: usdAmount,
+          amount,
           currency: selectedCurrency,
-          vsAmount: vsAmount,
-          transactionSignature: transactionSignature,
+          chain: selectedChain,
+          vsAmount,
+          transactionSignature: txSignature,
         }),
       });
 
@@ -217,22 +185,9 @@ export function BuyTokensModal({
         throw new Error(error.error || "Purchase failed");
       }
 
-      const result = await purchaseResponse.json();
-
-      if (selectedCurrency === "SOL") {
-        const signature =
-          typeof transactionSignature === "string"
-            ? transactionSignature
-            : (transactionSignature as any)?.signature || "Unknown";
-        toast.success(`Successfully purchased ${vsAmount} $VS tokens!`);
-      } else {
-        toast.success(`Successfully purchased ${vsAmount} $VS tokens!`);
-      }
-
-      console.log("Purchase result:", result);
-
+      toast.success(`Successfully purchased ${parseFloat(vsAmount).toLocaleString()} $VS tokens!`);
       refreshBalances();
-
+      
       if (onPurchaseComplete) {
         onPurchaseComplete();
       }
@@ -241,14 +196,23 @@ export function BuyTokensModal({
     } catch (error) {
       console.error("Purchase failed:", error);
       toast.error(
-        `Purchase failed: ${
-          error instanceof Error ? error.message : "Please try again."
-        }`
+        `Purchase failed: ${error instanceof Error ? error.message : "Please try again."}`
       );
     } finally {
       setIsPurchasing(false);
     }
   };
+
+  const quickBuyAmounts = React.useMemo(() => {
+    if (selectedCurrency === "SOL") return ["0.1", "0.25", "0.5", "1"];
+    if (selectedCurrency === "ETH") return ["0.01", "0.05", "0.1", "0.25"];
+    if (selectedCurrency === "MATIC") return ["10", "25", "50", "100"];
+    return ["25", "50", "100", "200"]; // Stablecoins
+  }, [selectedCurrency]);
+
+  const currentBalance = wallet.connected 
+    ? balances[wallet.chain]?.balances?.[selectedCurrency.toLowerCase()] || 0
+    : 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -269,139 +233,129 @@ export function BuyTokensModal({
         </DialogHeader>
 
         <div className="flex flex-col gap-5">
-          {!isPhantomInstalled ? (
-            <div className="bg-red-500/20 border border-red-500/50 rounded-md p-3 text-center">
-              <p className="text-red-400 text-sm">
-                Phantom wallet not installed. Please install it to continue.
-              </p>
-              <Button
-                onClick={() => window.open("https://phantom.app/", "_blank")}
-                className="mt-2 bg-red-500 hover:bg-red-600 text-white text-sm"
-              >
-                Install Phantom
-              </Button>
-            </div>
-          ) : !wallet.connected ? (
+          {/* Connection Status */}
+          {!wallet.connected ? (
             <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-md p-3 text-center">
-              <p className="text-yellow-400 text-sm">
-                Connect your Solana wallet to purchase tokens.
+              <p className="text-yellow-400 text-sm mb-2">
+                Connect your wallet to purchase tokens.
               </p>
               <Button
-                onClick={connectWallet}
+                onClick={() => connectWallet(selectedChain)}
                 disabled={wallet.connecting}
-                className="mt-2 bg-yellow-500 hover:bg-yellow-600 text-white text-sm"
+                className="mt-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white text-sm"
               >
                 {wallet.connecting ? "Connecting..." : "Connect Wallet"}
               </Button>
             </div>
           ) : (
             <div className="bg-green-500/20 border border-green-500/50 rounded-md p-3">
-              <p className="text-green-400 text-sm">
-                ✅ Wallet Connected: {wallet.publicKey?.slice(0, 8)}...
-                {wallet.publicKey?.slice(-8)}
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-green-400 text-sm">
+                  ✅ {chainConfig[wallet.chain as ChainType]?.name}: {wallet.address?.slice(0, 6)}...
+                  {wallet.address?.slice(-4)}
+                </p>
+                <Button
+                  onClick={disconnectWallet}
+                  size="sm"
+                  className="text-xs bg-red-500/50 hover:bg-red-500/70 h-6 px-2"
+                >
+                  Disconnect
+                </Button>
+              </div>
             </div>
           )}
 
-          <div className="bg-white/5 flex px-3 items-center justify-between rounded-md h-12 text-white placeholder:text-white/40">
-            <div className="flex flex-col">
-              <p className="text-white/80">
-                Balance: {walletInfo?.solana?.balance.sol.toFixed(4) || "0"} SOL
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={refreshBalances}
-                className="text-xs bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded"
-                disabled={!wallet.connected}
-              >
-                Refresh
-              </button>
-              <button
-                onClick={forceReconnect}
-                className="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded"
-              >
-                Reconnect
-              </button>
-            </div>
-          </div>
-
-          <div className="">
-            <div className="relative">
-              <Input
-                value={usdAmount}
-                onChange={(e) => {
-                  if (selectedCurrency === "SOL") {
-                    handleSolChange(e.target.value);
-                  } else {
-                    handleUsdChange(e.target.value);
-                  }
-                }}
-                placeholder="0"
-                className="bg-white/5 border-[#1FE6E5] text-white placeholder:text-white/40 h-12 text-lg pr-28"
-              />
-              <Select
-                value={selectedCurrency}
-                onValueChange={setSelectedCurrency}
-              >
-                <SelectTrigger className="absolute right-2 top-1/2 -translate-y-1/2 w-24 bg-[#1a1a2e] border-none  text-white h-10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-[#1a1a2e]">
-                  <SelectItem value="SOL" className="text-white">
-                    SOL
+          {/* Chain Selector */}
+          <div>
+            <label className="text-white/60 text-sm mb-2 block">Select Network</label>
+            <Select
+              value={selectedChain}
+              onValueChange={(val) => setSelectedChain(val as ChainType)}
+            >
+              <SelectTrigger className="bg-white/5 border-cyan-400/30 text-white h-12">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1a1a2e] border-white/10">
+                {Object.entries(chainConfig).map(([key, config]) => (
+                  <SelectItem key={key} value={key} className="text-white">
+                    {config.icon} {config.name}
                   </SelectItem>
-                  <SelectItem value="USDC" className="text-white">
-                    USDC
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Balance Display */}
+          <div className="bg-white/5 flex px-3 items-center justify-between rounded-md h-12 text-white">
+            <p className="text-white/80 text-sm">
+              Balance: {currentBalance.toFixed(4)} {selectedCurrency}
+            </p>
+            <button
+              onClick={refreshBalances}
+              className="text-xs bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded"
+              disabled={!wallet.connected}
+            >
+              Refresh
+            </button>
+          </div>
+
+          {/* Amount Input */}
+          <div className="relative">
+            <Input
+              value={amount}
+              onChange={(e) => handleAmountChange(e.target.value)}
+              placeholder="0"
+              className="bg-white/5 border-cyan-400/30 text-white placeholder:text-white/40 h-12 text-lg pr-32"
+            />
+            <Select
+              value={selectedCurrency}
+              onValueChange={(val) => setSelectedCurrency(val as CurrencyType)}
+            >
+              <SelectTrigger className="absolute right-2 top-1/2 -translate-y-1/2 w-24 bg-[#1a1a2e] border-none text-white h-10">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1a1a2e] border-white/10">
+                {chainConfig[selectedChain].currencies.map((currency) => (
+                  <SelectItem key={currency} value={currency} className="text-white">
+                    {currency}
                   </SelectItem>
-                </SelectContent>
-              </Select>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* VS Amount Display */}
+          <div className="relative">
+            <Input
+              value={parseFloat(vsAmount).toLocaleString()}
+              readOnly
+              placeholder="0"
+              className="bg-white/5 border-cyan-400/30 text-white placeholder:text-white/40 h-12 text-lg pr-28"
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 w-12 border rounded-md flex justify-center items-center bg-[#1a1a2e] border-none text-white h-8">
+              VS
             </div>
           </div>
 
-          <div className="">
-            <div className="relative">
-              <Input
-                value={vsAmount}
-                onChange={(e) => handleVsChange(e.target.value)}
-                placeholder="0"
-                className="bg-white/5 border-[#1FE6E5] text-white placeholder:text-white/40 h-12 text-lg pr-28"
-              />
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 w-12 border rounded-md flex justify-center items-center bg-[#1a1a2e] border-none text-white h-8">
-                VS
-              </div>
-            </div>
-          </div>
-          <div className="">
-            <div className="grid grid-cols-4 gap-2">
-              {selectedCurrency === "SOL"
-                ? ["0.1", "0.25", "0.5", "1"].map((amount) => (
-                    <Button
-                      key={amount}
-                      onClick={() => handleQuickBuy(amount)}
-                      variant="outline"
-                      className="bg-white/5 border-white/10 text-white hover:bg-white/10 h-10"
-                    >
-                      {amount} SOL
-                    </Button>
-                  ))
-                : ["25", "50", "100", "200"].map((amount) => (
-                    <Button
-                      key={amount}
-                      onClick={() => handleQuickBuy(amount)}
-                      variant="outline"
-                      className="bg-white/5 border-white/10 text-white hover:bg-white/10 h-10"
-                    >
-                      ${amount}
-                    </Button>
-                  ))}
-            </div>
+          {/* Quick Buy Buttons */}
+          <div className="grid grid-cols-4 gap-2">
+            {quickBuyAmounts.map((quickAmount) => (
+              <Button
+                key={quickAmount}
+                onClick={() => handleQuickBuy(quickAmount)}
+                variant="outline"
+                className="bg-white/5 border-white/10 text-white hover:bg-white/10 h-10 text-xs"
+              >
+                {quickAmount}
+              </Button>
+            ))}
           </div>
 
+          {/* Buy Button */}
           <Button
             onClick={handleBuy}
-            disabled={!wallet.connected || isPurchasing || !isPhantomInstalled}
-            className="w-full bg-[#9A2BD8] text-white hover:bg-[#9A2BD8]/90 h-12 text-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isPurchasing || parseFloat(amount) <= 0}
+            className="w-full bg-gradient-to-r from-purple-600 to-cyan-500 text-white hover:from-purple-700 hover:to-cyan-600 h-12 text-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isPurchasing ? "Processing..." : "Buy $VS Chips"}
           </Button>
