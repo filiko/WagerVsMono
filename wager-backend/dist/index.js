@@ -13,6 +13,8 @@ const auth_1 = __importDefault(require("./routes/auth"));
 const admin_1 = __importDefault(require("./routes/admin"));
 const legacy_1 = __importDefault(require("./routes/legacy"));
 const predictions_1 = __importDefault(require("./routes/predictions"));
+const wagers_1 = __importDefault(require("./routes/wagers"));
+const wallet_1 = __importDefault(require("./routes/wallet"));
 const auth_2 = require("./middleware/auth");
 // Load environment variables
 dotenv_1.default.config();
@@ -30,13 +32,15 @@ app.use("/api/auth", auth_1.default);
 app.use("/api/admin", admin_1.default);
 app.use("/api", legacy_1.default);
 app.use("/api/predictions", predictions_1.default);
+app.use("/api/wagers", wagers_1.default);
+app.use("/api/wallet", wallet_1.default);
 // Protected route example
 app.get("/api/profile", auth_2.authenticateToken, async (req, res) => {
     try {
         const { data: user, error } = await supabase_1.supabaseAdmin
-            .from('users')
-            .select('id, email, name, avatar, role, created_at, last_login')
-            .eq('id', req.user.id)
+            .from("users")
+            .select("id, email, name, avatar, role, created_at, last_login")
+            .eq("id", req?.user?.id)
             .single();
         if (error || !user) {
             return res.status(404).json({ error: "User not found" });
@@ -65,8 +69,7 @@ app.get("/api/health", (req, res) => {
     });
 });
 // Serve static Admin portal from external directory
-const ADMIN_STATIC_DIR = process.env.ADMIN_STATIC_DIR ||
-    path_1.default.resolve("C:\\Users\\jafil\\Documents\\GitHub\\WagerVSDev_Testing\\admin");
+const ADMIN_STATIC_DIR = process.env.ADMIN_STATIC_DIR || path_1.default.resolve("./admin");
 app.use("/admin", express_1.default.static(ADMIN_STATIC_DIR, { extensions: ["html"] }));
 // Error handling middleware
 app.use((err, req, res, next) => {

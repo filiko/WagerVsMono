@@ -3,16 +3,19 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
+const express_1 = require("express"); // Import Request, Response, NextFunction
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+// Assuming you have these somewhere, adjust paths if needed
 const zeroG_1 = require("../services/zeroG");
-const client_1 = require("@prisma/client");
+const supabase_1 = require("../lib/supabase"); // Use Supabase admin client
 const crypto_1 = require("crypto");
+// --- END TYPE AUGMENTATION ---
 const router = (0, express_1.Router)();
-const prisma = new client_1.PrismaClient();
 // Admin login (dev-only when ALLOW_ANY_ADMIN_LOGIN is true)
 router.post("/login", (req, res) => {
-    if (!process.env.ALLOW_ANY_ADMIN_LOGIN || !/^(1|true)$/i.test(process.env.ALLOW_ANY_ADMIN_LOGIN)) {
+    // Add types
+    if (!process.env.ALLOW_ANY_ADMIN_LOGIN ||
+        !/^(1|true)$/i.test(process.env.ALLOW_ANY_ADMIN_LOGIN)) {
         return res.status(403).json({ error: "Admin dev login disabled" });
     }
     const { username, password } = req.body || {};
@@ -30,6 +33,7 @@ router.post("/login", (req, res) => {
 });
 // Middleware to verify the admin JWT without DB lookup.
 function requireAdmin(req, res, next) {
+    // Add types
     try {
         const auth = req.headers.authorization || "";
         const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
@@ -39,6 +43,7 @@ function requireAdmin(req, res, next) {
         if (!decoded || decoded.role !== "admin") {
             return res.status(401).json({ error: "Unauthorized" });
         }
+        // Attach admin info to request object (TypeScript now knows about this thanks to augmentation)
         req.admin = { username: decoded.username };
         next();
     }
@@ -48,12 +53,11 @@ function requireAdmin(req, res, next) {
 }
 // Simple protected endpoint used by admin/checkAuth.js
 router.get("/data", requireAdmin, (req, res) => {
+    // Add types
     return res.json({ ok: true, admin: req.admin?.username || "admin" });
 });
-exports.default = router;
-// --- AI generation stubs wired to 0G artifact recording ---
-// Generate an AI wager draft (stub) and record a 0G artifact for auditability.
 router.post("/generate-wager", requireAdmin, async (req, res) => {
+    // Add types
     try {
         const { description, timezoneOffset } = req.body || {};
         if (!description || typeof description !== "string") {
@@ -75,22 +79,26 @@ router.post("/generate-wager", requireAdmin, async (req, res) => {
             model: { provider: "openai", name: "gpt-4x-mini", version: "stub" },
             createdUtc,
         });
-        // Persist the log to DB (explicitly) — in case Prisma types aren’t regenerated, cast to any.
-        const log = await prisma.aiPredictionLog.create({
-            data: {
-                wagerId,
-                title,
-                confidencePct,
-                modelProvider: "openai",
-                modelName: "gpt-4x-mini",
-                modelVersion: "stub",
-                createdUtc: new Date(createdUtc),
-                serverReceivedUtc: new Date(),
-                appEnv: process.env.APP_ENV ?? "prod",
-                cid0g: cid,
-                integritySha256: sha256,
-            },
-        });
+        // Persist the log to Supabase DB
+        const { data: log, error } = await supabase_1.supabaseAdmin
+            .from("ai_prediction_logs")
+            .insert({
+            wager_id: wagerId,
+            title: title,
+            confidence_pct: confidencePct,
+            model_provider: "openai",
+            model_name: "gpt-4x-mini",
+            model_version: "stub",
+            created_utc: new Date(createdUtc),
+            server_received_utc: new Date(),
+            app_env: process.env.APP_ENV ?? "prod",
+            cid0g: cid,
+            integrity_sha256: sha256,
+        })
+            .select()
+            .single();
+        if (error)
+            throw error; // Handle Supabase errors
         return res.json({
             name: title,
             description,
@@ -112,6 +120,7 @@ router.post("/generate-wager", requireAdmin, async (req, res) => {
 });
 // Optional: accept rating feedback for AI generation; best-effort stub.
 router.post("/rate-ai-generation", requireAdmin, async (req, res) => {
+    // Add types
     try {
         const { logId, rating } = req.body || {};
         if (!logId)
@@ -120,7 +129,9 @@ router.post("/rate-ai-generation", requireAdmin, async (req, res) => {
         return res.json({ ok: true });
     }
     catch (err) {
+        console.error("Error rating AI generation:", err); // Added log
         return res.status(500).json({ error: "Failed to record rating" });
     }
 });
+exports.default = router;
 //# sourceMappingURL=admin.js.map

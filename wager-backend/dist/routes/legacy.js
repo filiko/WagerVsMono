@@ -80,8 +80,20 @@ router.post("/add-external-points", (req, res) => {
 // Venmo payouts
 router.get("/admin/venmo-payouts-store", (req, res) => {
     res.json([
-        { id: 1, username: "alice", amount: 25, source: "web", created_at: new Date().toISOString() },
-        { id: 2, username: "bob", amount: 42, source: "web", created_at: new Date().toISOString() },
+        {
+            id: 1,
+            username: "alice",
+            amount: 25,
+            source: "web",
+            created_at: new Date().toISOString(),
+        },
+        {
+            id: 2,
+            username: "bob",
+            amount: 42,
+            source: "web",
+            created_at: new Date().toISOString(),
+        },
     ]);
 });
 router.post("/admin/mark-venmo-paid/:id", (req, res) => {

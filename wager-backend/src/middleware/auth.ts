@@ -9,21 +9,21 @@ interface JwtPayload {
   email: string;
 }
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: number;
-        email: string | null;
-        role: string;
-        name: string | null;
-        avatar: string | null;
-        provider: string;
-        solanaPublicKey: string | null;
-      };
-    }
-  }
-}
+// declare global {
+//   namespace Express {
+//     interface Request {
+//       user?: {
+//         id: number;
+//         email: string | null;
+//         role: string;
+//         name: string | null;
+//         avatar: string | null;
+//         provider: string;
+//         solanaPublicKey: string | null;
+//       };
+//     }
+//   }
+// }
 
 export const authenticateToken = async (
   req: Request,
