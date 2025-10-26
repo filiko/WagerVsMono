@@ -64,7 +64,10 @@ export function AiWagerGenerator({
     try {
       const token =
         typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      const res = await fetch(`/api/admin/generate-wager`, {
+      // const res = await fetch(`/api/admin/generate-wager`, {   // older fetch
+      // for render
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      const res = await fetch(`${apiUrl}/api/admin/generate-wager`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -97,7 +100,10 @@ export function AiWagerGenerator({
       const token =
         typeof window !== "undefined" ? localStorage.getItem("token") : null;
       if (!token) return;
-      await fetch(`/api/admin/rate-ai-generation`, {
+
+      // for render
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      await fetch(`${apiUrl}/api/admin/rate-ai-generation`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
