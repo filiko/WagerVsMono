@@ -12,6 +12,14 @@ import {
 
 export type ChainType = "solana" | "ethereum" | "polygon" | "arbitrum" | "base";
 
+export type EvmChainType = Exclude<ChainType, "solana">;
+
+const CHAIN_IDS: Record<EvmChainType, string> = {
+  ethereum: "0x1", // 1
+  polygon: "0x89", // 137
+  arbitrum: "0xa4b1", // 42161
+  base: "0x2105", // 8453
+};
 interface WalletState {
   connected: boolean;
   connecting: boolean;
@@ -24,13 +32,6 @@ interface TransactionParams {
   amount: number;
   currency: string;
 }
-
-const CHAIN_IDS = {
-  ethereum: "0x1", // 1
-  polygon: "0x89", // 137
-  arbitrum: "0xa4b1", // 42161
-  base: "0x2105", // 8453
-};
 
 const SOLANA_RPC = "https://api.devnet.solana.com";
 
@@ -73,7 +74,9 @@ export function useMultiChainWallet() {
           method: "eth_accounts",
         });
         if (accounts.length > 0) {
-          const chainId = await window.ethereum.request({ method: "eth_chainId" });
+          const chainId = await window.ethereum.request({
+            method: "eth_chainId",
+          });
           const chain = getChainFromChainId(chainId);
           setWallet({
             connected: true,
@@ -88,21 +91,29 @@ export function useMultiChainWallet() {
     }
   };
 
-  const connectWallet = useCallback(async (chain: ChainType): Promise<boolean> => {
-    setWallet((prev) => ({ ...prev, connecting: true }));
+  const connectWallet = useCallback(
+    async (chain: ChainType): Promise<boolean> => {
+      setWallet((prev) => ({ ...prev, connecting: true }));
 
-    try {
-      if (chain === "solana") {
-        return await connectSolana();
-      } else {
-        return await connectEVM(chain);
+      try {
+        if (chain === "solana") {
+          return await connectSolana();
+        } else {
+          return await connectEVM(chain as EvmChainType);
+        }
+      } catch (error) {
+        console.error(`Error connecting to ${chain}:`, error);
+        setWallet({
+          connected: false,
+          connecting: false,
+          address: null,
+          chain: null,
+        });
+        return false;
       }
-    } catch (error) {
-      console.error(`Error connecting to ${chain}:`, error);
-      setWallet({ connected: false, connecting: false, address: null, chain: null });
-      return false;
-    }
-  }, []);
+    },
+    []
+  );
 
   const connectSolana = async (): Promise<boolean> => {
     if (typeof window === "undefined" || !window.solana) {
@@ -125,7 +136,7 @@ export function useMultiChainWallet() {
     }
   };
 
-  const connectEVM = async (chain: ChainType): Promise<boolean> => {
+  const connectEVM = async (chain: EvmChainType): Promise<boolean> => {
     if (typeof window === "undefined" || !window.ethereum) {
       alert("MetaMask not found. Please install it from metamask.io");
       return false;
@@ -218,7 +229,12 @@ export function useMultiChainWallet() {
       }
     }
 
-    setWallet({ connected: false, connecting: false, address: null, chain: null });
+    setWallet({
+      connected: false,
+      connecting: false,
+      address: null,
+      chain: null,
+    });
   }, [wallet.chain]);
 
   const sendTransaction = useCallback(
@@ -236,7 +252,9 @@ export function useMultiChainWallet() {
     [wallet]
   );
 
-  const sendSolanaTransaction = async (params: TransactionParams): Promise<string> => {
+  const sendSolanaTransaction = async (
+    params: TransactionParams
+  ): Promise<string> => {
     if (!window.solana || !wallet.address) {
       throw new Error("Solana wallet not connected");
     }
@@ -265,7 +283,9 @@ export function useMultiChainWallet() {
     return signature;
   };
 
-  const sendEVMTransaction = async (params: TransactionParams): Promise<string> => {
+  const sendEVMTransaction = async (
+    params: TransactionParams
+  ): Promise<string> => {
     if (!window.ethereum || !wallet.address) {
       throw new Error("EVM wallet not connected");
     }
@@ -308,7 +328,19 @@ export function useMultiChainWallet() {
 // Type declarations for window objects
 declare global {
   interface Window {
-    solana?: any;
-    ethereum?: any;
+    // FIX: Combine all required Solana properties into one type
+    solana?: {
+      isPhantom?: boolean;
+      isConnected?: boolean;
+      connect: (args?: {
+        onlyIfTrusted?: boolean;
+      }) => Promise<{ publicKey: { toString: () => string } }>;
+      disconnect: () => Promise<void>;
+      signTransaction: (tx: Transaction) => Promise<Transaction>;
+      on: (event: string, callback: (args: any) => void) => void;
+      off: (event: string, callback: (args: any) => void) => void;
+      request: (params: any) => Promise<any>;
+    };
+    ethereum?: any; // Keep the simplified type for Ethereum as it handles most EVM calls
   }
 }

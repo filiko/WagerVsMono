@@ -14,7 +14,7 @@ export function Sidebar() {
   const [buyTokensOpen, setBuyTokensOpen] = React.useState(false);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const pathname = usePathname();
-  const { walletInfo, loading, refreshBalances } = useWalletBalance();
+  const { refreshBalances, balances, walletInfo, loading } = useWalletBalance();
 
   const handlePurchaseComplete = React.useCallback(async () => {
     setIsRefreshing(true);
@@ -49,7 +49,10 @@ export function Sidebar() {
               >
                 {loading || isRefreshing
                   ? "..."
-                  : walletInfo?.balances?.vs?.toFixed(0) || "0"}
+                  : walletInfo && walletInfo.chain // Check if walletInfo and walletInfo.chain exist
+                  ? // If they exist, access the property using the non-null assertion on walletInfo.chain
+                    balances?.[walletInfo.chain]?.balances?.VS?.toFixed(0)
+                  : "0"}
               </span>
             </div>
             <Button

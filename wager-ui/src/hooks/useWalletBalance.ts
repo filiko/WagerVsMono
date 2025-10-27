@@ -18,27 +18,31 @@ export function useWalletBalance() {
   const [loading, setLoading] = useState(false);
   const { wallet } = useMultiChainWallet();
 
-  const fetchBalance = useCallback(async (chain: ChainType, address: string) => {
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      const response = await fetch(
-        `${apiUrl}/api/wallet/balance?address=${address}&chain=${chain}`,
-        {
-          credentials: "include",
+  const fetchBalance = useCallback(
+    async (chain: ChainType, address: string) => {
+      try {
+        const apiUrl =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+        const response = await fetch(
+          `${apiUrl}/api/wallet/balance?address=${address}&chain=${chain}`,
+          {
+            credentials: "include",
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch balance for ${chain}`);
         }
-      );
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch balance for ${chain}`);
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error(`Error fetching balance for ${chain}:`, error);
+        return null;
       }
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error(`Error fetching balance for ${chain}:`, error);
-      return null;
-    }
-  }, []);
+    },
+    []
+  );
 
   const fetchPrices = useCallback(async () => {
     try {
@@ -74,9 +78,9 @@ export function useWalletBalance() {
       if (balanceData) {
         setBalances((prev) => ({
           ...prev,
-          [wallet.chain]: {
+          [wallet.chain!]: {
             ...balanceData,
-            prices: prices?.[wallet.chain] || {},
+            prices: prices?.[wallet.chain!] || {},
           },
         }));
       }
@@ -85,7 +89,13 @@ export function useWalletBalance() {
     } finally {
       setLoading(false);
     }
-  }, [wallet.connected, wallet.address, wallet.chain, fetchBalance, fetchPrices]);
+  }, [
+    wallet.connected,
+    wallet.address,
+    wallet.chain,
+    fetchBalance,
+    fetchPrices,
+  ]);
 
   // Auto-refresh when wallet connects
   useEffect(() => {
@@ -103,9 +113,9 @@ export function useWalletBalance() {
           if (prices) {
             setBalances((prev) => ({
               ...prev,
-              [wallet.chain]: {
-                ...prev[wallet.chain],
-                prices: prices[wallet.chain] || {},
+              [wallet.chain!]: {
+                ...prev[wallet.chain!],
+                prices: prices[wallet.chain!] || {},
                 lastUpdated: new Date().toISOString(),
               },
             }));
@@ -123,5 +133,6 @@ export function useWalletBalance() {
     balances,
     loading,
     refreshBalances,
+    walletInfo: wallet,
   };
 }
