@@ -38,10 +38,12 @@ export function BuyTokensModal({
   const [amount, setAmount] = React.useState("0");
   const [vsAmount, setVsAmount] = React.useState("0");
   const [selectedChain, setSelectedChain] = React.useState<ChainType>("solana");
-  const [selectedCurrency, setSelectedCurrency] = React.useState<CurrencyType>("SOL");
+  const [selectedCurrency, setSelectedCurrency] =
+    React.useState<CurrencyType>("SOL");
   const [isPurchasing, setIsPurchasing] = React.useState(false);
 
-  const { wallet, connectWallet, disconnectWallet, sendTransaction } = useMultiChainWallet();
+  const { wallet, connectWallet, disconnectWallet, sendTransaction } =
+    useMultiChainWallet();
   const { balances, refreshBalances } = useWalletBalance();
   const conversionRate = 20000; // VS tokens per USD
 
@@ -81,13 +83,16 @@ export function BuyTokensModal({
     },
   };
 
-  const currencyPrices = React.useMemo(() => ({
-    SOL: balances[selectedChain]?.prices?.native || 0,
-    ETH: balances[selectedChain]?.prices?.native || 0,
-    MATIC: balances[selectedChain]?.prices?.native || 0,
-    USDC: 1,
-    USDT: 1,
-  }), [balances, selectedChain]);
+  const currencyPrices = React.useMemo(
+    () => ({
+      SOL: balances[selectedChain]?.prices?.native || 0,
+      ETH: balances[selectedChain]?.prices?.native || 0,
+      MATIC: balances[selectedChain]?.prices?.native || 0,
+      USDC: 1,
+      USDT: 1,
+    }),
+    [balances, selectedChain]
+  );
 
   React.useEffect(() => {
     if (wallet.connected && wallet.address) {
@@ -144,7 +149,9 @@ export function BuyTokensModal({
     }
 
     if (wallet.chain !== selectedChain) {
-      toast.error(`Please switch to ${chainConfig[selectedChain].name} network`);
+      toast.error(
+        `Please switch to ${chainConfig[selectedChain].name} network`
+      );
       return;
     }
 
@@ -185,9 +192,13 @@ export function BuyTokensModal({
         throw new Error(error.error || "Purchase failed");
       }
 
-      toast.success(`Successfully purchased ${parseFloat(vsAmount).toLocaleString()} $VS tokens!`);
+      toast.success(
+        `Successfully purchased ${parseFloat(
+          vsAmount
+        ).toLocaleString()} $VS tokens!`
+      );
       refreshBalances();
-      
+
       if (onPurchaseComplete) {
         onPurchaseComplete();
       }
@@ -196,7 +207,9 @@ export function BuyTokensModal({
     } catch (error) {
       console.error("Purchase failed:", error);
       toast.error(
-        `Purchase failed: ${error instanceof Error ? error.message : "Please try again."}`
+        `Purchase failed: ${
+          error instanceof Error ? error.message : "Please try again."
+        }`
       );
     } finally {
       setIsPurchasing(false);
@@ -210,9 +223,16 @@ export function BuyTokensModal({
     return ["25", "50", "100", "200"]; // Stablecoins
   }, [selectedCurrency]);
 
+<<<<<<< HEAD
   const currentBalance = wallet.connected && wallet.chain
     ? balances[wallet.chain]?.balances?.[selectedCurrency.toLowerCase()] || 0
     : 0;
+=======
+  const currentBalance =
+    wallet.connected && wallet.chain
+      ? balances[wallet.chain]?.balances?.[selectedCurrency.toLowerCase()] || 0
+      : 0;
+>>>>>>> f6e85e0776e27049e6a0c69c62da60e803d8ceee
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -251,7 +271,8 @@ export function BuyTokensModal({
             <div className="bg-green-500/20 border border-green-500/50 rounded-md p-3">
               <div className="flex items-center justify-between">
                 <p className="text-green-400 text-sm">
-                  ✅ {chainConfig[wallet.chain as ChainType]?.name}: {wallet.address?.slice(0, 6)}...
+                  ✅ {chainConfig[wallet.chain as ChainType]?.name}:{" "}
+                  {wallet.address?.slice(0, 6)}...
                   {wallet.address?.slice(-4)}
                 </p>
                 <Button
@@ -267,7 +288,9 @@ export function BuyTokensModal({
 
           {/* Chain Selector */}
           <div>
-            <label className="text-white/60 text-sm mb-2 block">Select Network</label>
+            <label className="text-white/60 text-sm mb-2 block">
+              Select Network
+            </label>
             <Select
               value={selectedChain}
               onValueChange={(val) => setSelectedChain(val as ChainType)}
@@ -316,7 +339,11 @@ export function BuyTokensModal({
               </SelectTrigger>
               <SelectContent className="bg-[#1a1a2e] border-white/10">
                 {chainConfig[selectedChain].currencies.map((currency) => (
-                  <SelectItem key={currency} value={currency} className="text-white">
+                  <SelectItem
+                    key={currency}
+                    value={currency}
+                    className="text-white"
+                  >
                     {currency}
                   </SelectItem>
                 ))}

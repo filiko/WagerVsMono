@@ -9,20 +9,20 @@ interface SolanaWallet {
   connecting: boolean;
 }
 
-declare global {
-  interface Window {
-    solana?: {
-      isPhantom?: boolean;
-      isConnected?: boolean;
-      connect: () => Promise<{ publicKey: { toString: () => string } }>;
-      disconnect: () => Promise<void>;
-      on: (event: string, callback: (args: any) => void) => void;
-      off: (event: string, callback: (args: any) => void) => void;
-      request: (params: any) => Promise<any>;
-      signAndSendTransaction: (transaction: any) => Promise<string>;
-    };
-  }
-}
+// declare global {
+//   interface Window {
+//     solana?: {
+//       isPhantom?: boolean;
+//       isConnected?: boolean;
+//       connect: () => Promise<{ publicKey: { toString: () => string } }>;
+//       disconnect: () => Promise<void>;
+//       on: (event: string, callback: (args: any) => void) => void;
+//       off: (event: string, callback: (args: any) => void) => void;
+//       request: (params: any) => Promise<any>;
+//       signAndSendTransaction: (transaction: any) => Promise<string>;
+//     };
+//   }
+// }
 
 export const useSolanaWallet = () => {
   const [wallet, setWallet] = useState<SolanaWallet>({

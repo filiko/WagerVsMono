@@ -38,9 +38,9 @@ app.use("/api/wallet", wallet_1.default);
 app.get("/api/profile", auth_2.authenticateToken, async (req, res) => {
     try {
         const { data: user, error } = await supabase_1.supabaseAdmin
-            .from('users')
-            .select('id, email, name, avatar, role, created_at, last_login')
-            .eq('id', req.user.id)
+            .from("users")
+            .select("id, email, name, avatar, role, created_at, last_login")
+            .eq("id", req?.user?.id)
             .single();
         if (error || !user) {
             return res.status(404).json({ error: "User not found" });

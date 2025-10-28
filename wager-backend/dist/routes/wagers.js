@@ -10,18 +10,19 @@ router.get("/", async (req, res) => {
         const { status, category } = req.query;
         // Build where clause based on query parameters
         let query = supabase_1.supabaseAdmin
-            .from('predictions')
+            .from("predictions")
             .select(`
         *,
         prediction_sides (*),
         bets (*)
       `)
-            .order('created_at', { ascending: false });
+<<<<<<< HEAD
+            .order("created_at", { ascending: false });
         if (status) {
-            query = query.eq('status', status);
+            query = query.eq("status", status);
         }
         if (category) {
-            query = query.eq('category', category);
+            query = query.eq("category", category);
         }
         const { data: predictions, error } = await query;
         if (error) {
@@ -34,34 +35,35 @@ router.get("/", async (req, res) => {
             const totalParticipants = prediction.prediction_sides?.reduce((sum, side) => sum + (side.bet_count || 0), 0) || 0;
             // Map category to image
             const categoryImageMap = {
-                'NBA': '/image/basketball.avif',
-                'NCAA Basketball': '/image/basketball.avif',
-                'NFL': '/image/football.avif',
-                'Soccer - La Liga': '/image/football.avif',
-                'Soccer - Premier League': '/image/football.avif',
-                'Soccer - Champions League': '/image/football.avif',
-                'Crypto - Solana': '/image/crypto.avif',
-                'Crypto - Ethereum': '/image/crypto.avif',
-                'Crypto - Bitcoin': '/image/crypto.avif',
-                'Crypto - Meme Coins': '/image/crypto.avif',
-                'Esports - League of Legends': '/image/gaming.svg',
-                'Esports - CS2': '/image/gaming.svg',
-                'Esports - Valorant': '/image/gaming.svg',
+                NBA: "/image/basketball.avif",
+                "NCAA Basketball": "/image/basketball.avif",
+                NFL: "/image/football.avif",
+                "Soccer - La Liga": "/image/football.avif",
+                "Soccer - Premier League": "/image/football.avif",
+                "Soccer - Champions League": "/image/football.avif",
+                "Crypto - Solana": "/image/crypto.avif",
+                "Crypto - Ethereum": "/image/crypto.avif",
+                "Crypto - Bitcoin": "/image/crypto.avif",
+                "Crypto - Meme Coins": "/image/crypto.avif",
+                "Esports - League of Legends": "/image/gaming.svg",
+                "Esports - CS2": "/image/gaming.svg",
+                "Esports - Valorant": "/image/gaming.svg",
             };
             return {
                 id: prediction.id,
                 title: prediction.title,
-                description: prediction.description || '',
+                description: prediction.description || "",
                 imageUrl: categoryImageMap[prediction.category] || null,
-                category: prediction.category.toLowerCase().replace(/\s+/g, '_'),
+                category: prediction.category.toLowerCase().replace(/\s+/g, "_"),
                 status: prediction.status,
                 isPublic: true,
                 winningSide: prediction.result,
-                side1Title: prediction.prediction_sides?.[0]?.name || 'YES',
-                side2Title: prediction.prediction_sides?.[1]?.name || 'NO',
+                side1Title: prediction.prediction_sides?.[0]?.name || "YES",
+                side2Title: prediction.prediction_sides?.[1]?.name || "NO",
                 side1Amount: prediction.prediction_sides?.[0]?.total_staked || 0,
                 side2Amount: prediction.prediction_sides?.[1]?.total_staked || 0,
-                endTime: prediction.lock_time?.toISOString() || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                endTime: prediction.lock_time?.toISOString() ||
+                    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
                 createdAt: prediction.created_at,
                 updatedAt: prediction.updated_at,
                 createdById: prediction.user_id || null,
@@ -91,7 +93,7 @@ router.get("/:id", async (req, res) => {
     try {
         const { id } = req.params;
         const { data: prediction, error } = await supabase_1.supabaseAdmin
-            .from('predictions')
+            .from("predictions")
             .select(`
         *,
         prediction_sides (*),
@@ -104,7 +106,7 @@ router.get("/:id", async (req, res) => {
           )
         )
       `)
-            .eq('id', id)
+            .eq("id", id)
             .single();
         if (error || !prediction) {
             return res.status(404).json({ error: "Wager not found" });
@@ -114,7 +116,7 @@ router.get("/:id", async (req, res) => {
         const wager = {
             id: prediction.id,
             title: prediction.title,
-            description: prediction.description || '',
+            description: prediction.description || "",
             category: prediction.category,
             status: prediction.status,
             isPublic: true,
@@ -171,7 +173,7 @@ router.post("/", auth_1.authenticateToken, async (req, res) => {
             endTime: endTime || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
             createdAt: new Date().toISOString(),
             createdById: req.user?.id || 1,
-            participants: 0
+            participants: 0,
         };
         res.status(201).json(mockWager);
     }

@@ -96,7 +96,8 @@ export default function PredictionPage({
     submitting,
     makePrediction,
   } = usePrediction(resolvedParams.id);
-  const { refreshBalances, balances } = useWalletBalance();
+  const { refreshBalances, balances, walletInfo } = useWalletBalance();
+  const currentChain = walletInfo?.chain;
   const [selectedTeam, setSelectedTeam] = useState<string>("");
   const [amount, setAmount] = useState("100");
   const [comment, setComment] = useState("");
@@ -108,7 +109,7 @@ export default function PredictionPage({
   };
 
   const handlePercentageAdd = (percentage: number) => {
-    const total = 10000; // Default balance for now
+    const total = (currentChain && balances?.[currentChain]?.balances?.VS) || 0;
     const totalInt = Math.floor(total);
     const increment = Math.floor((totalInt * percentage) / 100);
     const current = Number.isFinite(parseFloat(amount))
@@ -119,7 +120,11 @@ export default function PredictionPage({
   };
 
   const handleMaxAmount = () => {
+<<<<<<< HEAD
     const total = 10000; // Default balance for now
+=======
+    const total = (currentChain && balances?.[currentChain]?.balances?.VS) || 0;
+>>>>>>> f6e85e0776e27049e6a0c69c62da60e803d8ceee
     setAmount(String(Math.floor(total)));
   };
 

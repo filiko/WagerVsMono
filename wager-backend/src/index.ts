@@ -11,7 +11,7 @@ import predictionsRoutes from "./routes/predictions";
 import wagersRoutes from "./routes/wagers";
 import walletRoutes from "./routes/wallet";
 import { authenticateToken } from "./middleware/auth";
-
+import { Request, Response } from "express";
 // Load environment variables
 dotenv.config();
 
@@ -37,35 +37,39 @@ app.use("/api/wagers", wagersRoutes);
 app.use("/api/wallet", walletRoutes);
 
 // Protected route example
-app.get("/api/profile", authenticateToken, async (req: any, res) => {
-  try {
-    const { data: user, error } = await supabaseAdmin
-      .from('users')
-      .select('id, email, name, avatar, role, created_at, last_login')
-      .eq('id', req.user.id)
-      .single();
+app.get(
+  "/api/profile",
+  authenticateToken,
+  async (req: Request, res: Response) => {
+    try {
+      const { data: user, error } = await supabaseAdmin
+        .from("users")
+        .select("id, email, name, avatar, role, created_at, last_login")
+        .eq("id", req?.user?.id)
+        .single();
 
-    if (error || !user) {
-      return res.status(404).json({ error: "User not found" });
+      if (error || !user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar,
+        role: user.role,
+        createdAt: user.created_at,
+        lastLogin: user.last_login,
+      });
+    } catch (error) {
+      console.error("Profile error:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
-
-    res.json({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      avatar: user.avatar,
-      role: user.role,
-      createdAt: user.created_at,
-      lastLogin: user.last_login,
-    });
-  } catch (error) {
-    console.error("Profile error:", error);
-    res.status(500).json({ error: "Internal server error" });
   }
-});
+);
 
 // Health check
-app.get("/api/health", (req, res) => {
+app.get("/api/health", (req: Request, res: Response) => {
   res.json({
     status: process.env.SUPABASE_URL ? "connected" : "disconnected",
     database: "supabase",
@@ -74,7 +78,8 @@ app.get("/api/health", (req, res) => {
 });
 
 // Serve static Admin portal from external directory
-const ADMIN_STATIC_DIR = process.env.ADMIN_STATIC_DIR || path.resolve("./admin");
+const ADMIN_STATIC_DIR =
+  process.env.ADMIN_STATIC_DIR || path.resolve("./admin");
 
 app.use("/admin", express.static(ADMIN_STATIC_DIR, { extensions: ["html"] }));
 

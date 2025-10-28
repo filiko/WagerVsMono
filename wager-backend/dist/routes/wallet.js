@@ -11,7 +11,13 @@ router.post("/connect", async (req, res) => {
             return res.status(400).json({ error: "Address and chain are required" });
         }
         // Validate chain type
-        const validChains = ["solana", "ethereum", "polygon", "arbitrum", "base"];
+        const validChains = [
+            "solana",
+            "ethereum",
+            "polygon",
+            "arbitrum",
+            "base",
+        ];
         if (!validChains.includes(chain)) {
             return res.status(400).json({ error: "Invalid chain type" });
         }
@@ -22,7 +28,7 @@ router.post("/connect", async (req, res) => {
             success: true,
             message: `${chain} wallet connected successfully`,
             address,
-            chain
+            chain,
         });
     }
     catch (error) {
@@ -40,7 +46,7 @@ router.post("/disconnect", auth_1.authenticateToken, async (req, res) => {
         // TODO: Clear wallet connection in database
         res.json({
             success: true,
-            message: "Wallet disconnected successfully"
+            message: "Wallet disconnected successfully",
         });
     }
     catch (error) {
@@ -87,7 +93,7 @@ router.get("/balance", async (req, res) => {
             address,
             chain,
             balances,
-            lastUpdated: new Date().toISOString()
+            lastUpdated: new Date().toISOString(),
         });
     }
     catch (error) {
@@ -116,7 +122,9 @@ router.post("/purchase", async (req, res) => {
         // TODO: Verify transaction on blockchain
         // TODO: Credit user's VS token balance in database
         // For now, simulate successful purchase
-        const purchaseId = `purchase_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        const purchaseId = `purchase_${Date.now()}_${Math.random()
+            .toString(36)
+            .substring(7)}`;
         res.json({
             success: true,
             purchaseId,
@@ -126,7 +134,7 @@ router.post("/purchase", async (req, res) => {
             vsAmount,
             transactionSignature,
             status: "completed",
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
         });
     }
     catch (error) {
@@ -141,32 +149,32 @@ router.get("/prices", async (req, res) => {
         // In production, fetch from CoinGecko, CoinMarketCap, or DEX aggregators
         const prices = {
             solana: {
-                sol: 180.50,
-                usdc: 1.00,
+                sol: 180.5,
+                usdc: 1.0,
             },
             ethereum: {
-                eth: 3500.00,
-                usdc: 1.00,
-                usdt: 1.00,
+                eth: 3500.0,
+                usdc: 1.0,
+                usdt: 1.0,
             },
             polygon: {
                 matic: 0.85,
-                usdc: 1.00,
-                usdt: 1.00,
+                usdc: 1.0,
+                usdt: 1.0,
             },
             arbitrum: {
-                eth: 3500.00,
-                usdc: 1.00,
-                usdt: 1.00,
+                eth: 3500.0,
+                usdc: 1.0,
+                usdt: 1.0,
             },
             base: {
-                eth: 3500.00,
-                usdc: 1.00,
+                eth: 3500.0,
+                usdc: 1.0,
             },
         };
         res.json({
             prices,
-            lastUpdated: new Date().toISOString()
+            lastUpdated: new Date().toISOString(),
         });
     }
     catch (error) {
@@ -224,7 +232,9 @@ router.post("/verify-transaction", async (req, res) => {
     try {
         const { transactionSignature, chain } = req.body;
         if (!transactionSignature || !chain) {
-            return res.status(400).json({ error: "Transaction signature and chain are required" });
+            return res
+                .status(400)
+                .json({ error: "Transaction signature and chain are required" });
         }
         // TODO: Implement actual blockchain verification
         // For Solana: use @solana/web3.js Connection.getTransaction()
@@ -237,7 +247,7 @@ router.post("/verify-transaction", async (req, res) => {
             transactionSignature,
             status: "confirmed",
             blockNumber: 12345678,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
         });
     }
     catch (error) {

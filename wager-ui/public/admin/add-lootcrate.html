@@ -1,102 +1,114 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Add Loot Crate</title>
-  <script src="config.js" defer></script>
-  <script src="checkAuth.js" defer></script>
-  <link rel="stylesheet" href="admin.css" />
-</head>
-<body>
-  <div class="utility-container">
-    <div class="top-buttons">
-      <a href="admin.html" class="utility-button">🏠 Home</a>
-      <button class="utility-button" onclick="logout()">🚪 Logout</button>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Add Loot Crate</title>
+    <script src="config.js" defer></script>
+    <script src="checkAuth.js" defer></script>
+    <link rel="stylesheet" href="admin.css" />
+  </head>
+  <body>
+    <div class="utility-container">
+      <div class="top-buttons">
+        <a href="admin.html" class="utility-button">🏠 Home</a>
+        <button class="utility-button" onclick="logout()">🚪 Logout</button>
+      </div>
+
+      <h2 class="utility-title">Add Loot Crate</h2>
+      <form id="crateForm" class="utility-buttons">
+        <input name="name" placeholder="Crate Name" required />
+        <textarea
+          name="description"
+          placeholder="Description (e.g. chance-based rewards)"
+        ></textarea>
+        <input
+          name="price"
+          placeholder="Price in VSChips"
+          type="number"
+          required
+        />
+        <input name="stock" placeholder="Stock" type="number" required />
+
+        <label for="crateImage" style="color: #ccc">Crate Image</label>
+        <input type="file" id="crateImage" accept="image/*" /><br />
+        <img
+          id="previewImage"
+          src=""
+          alt="Preview"
+          style="max-height: 200px; margin-top: 10px; display: none"
+        />
+        <input type="hidden" name="image_url" id="image_url" />
+
+        <button type="submit" class="utility-button">Create Crate</button>
+      </form>
     </div>
 
-    <h2 class="utility-title">Add Loot Crate</h2>
-    <form id="crateForm" class="utility-buttons">
-      <input name="name" placeholder="Crate Name" required />
-      <textarea name="description" placeholder="Description (e.g. chance-based rewards)"></textarea>
-      <input name="price" placeholder="Price in VSChips" type="number" required />
-      <input name="stock" placeholder="Stock" type="number" required />
+    <div class="loader-overlay" id="loader">
+      <div class="loader"></div>
+      <p>Creating Loot Crate...</p>
+    </div>
 
-      <label for="crateImage" style="color: #ccc;">Crate Image</label>
-      <input type="file" id="crateImage" accept="image/*" /><br />
-      <img id="previewImage" src="" alt="Preview" style="max-height: 200px; margin-top: 10px; display: none;" />
-      <input type="hidden" name="image_url" id="image_url" />
+    <script>
+      const form = document.getElementById("crateForm");
+      const loader = document.getElementById("loader");
+      const imageUploadInput = document.getElementById("crateImage");
+      const previewImage = document.getElementById("previewImage");
+      const imageUrlInput = document.getElementById("image_url");
 
-      <button type="submit" class="utility-button">Create Crate</button>
-    </form>
-  </div>
+      imageUploadInput.addEventListener("change", async function () {
+        const file = imageUploadInput.files[0];
+        if (!file) return;
 
-  <div class="loader-overlay" id="loader">
-    <div class="loader"></div>
-    <p>Creating Loot Crate...</p>
-  </div>
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          previewImage.src = e.target.result;
+          previewImage.style.display = "block";
+        };
+        reader.readAsDataURL(file);
 
-  <script>
-    const form = document.getElementById("crateForm");
-    const loader = document.getElementById("loader");
-    const imageUploadInput = document.getElementById("crateImage");
-    const previewImage = document.getElementById("previewImage");
-    const imageUrlInput = document.getElementById("image_url");
+        const formData = new FormData();
+        formData.append("image", file);
 
-    imageUploadInput.addEventListener("change", async function () {
-      const file = imageUploadInput.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = function (e) {
-        previewImage.src = e.target.result;
-        previewImage.style.display = "block";
-      };
-      reader.readAsDataURL(file);
-
-      const formData = new FormData();
-      formData.append("image", file);
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const result = await res.json();
-      if (result.url) {
-        imageUrlInput.value = "/images/" + result.url;
-      } else {
-        alert("❌ Failed to upload image");
-      }
-    });
-
-    form.addEventListener("submit", async function (e) {
-      e.preventDefault();
-      loader.style.display = "flex";
-
-      const formData = new FormData(form);
-      const data = Object.fromEntries(formData.entries());
-      data.price = parseFloat(data.price);
-      data.stock = parseInt(data.stock);
-
-      try {
-        const res = await fetch("/api/admin/add-loot-crate", {
+        const res = await fetch(`${API_BASE_URL}/api/upload`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data)
+          body: formData,
         });
 
         const result = await res.json();
-        alert(result.message || result.error);
-        if (result.message) form.reset();
-        previewImage.style.display = "none";
-      } catch (err) {
-        alert("Failed to submit crate.");
-      } finally {
-        loader.style.display = "none";
-      }
-    });
-  </script>
-</body>
-</html>
+        if (result.url) {
+          imageUrlInput.value = "/images/" + result.url;
+        } else {
+          alert("❌ Failed to upload image");
+        }
+      });
 
+      form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        loader.style.display = "flex";
+
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+        data.price = parseFloat(data.price);
+        data.stock = parseInt(data.stock);
+
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/admin/add-loot-crate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+
+          const result = await res.json();
+          alert(result.message || result.error);
+          if (result.message) form.reset();
+          previewImage.style.display = "none";
+        } catch (err) {
+          alert("Failed to submit crate.");
+        } finally {
+          loader.style.display = "none";
+        }
+      });
+    </script>
+  </body>
+</html>

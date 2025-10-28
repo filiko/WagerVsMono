@@ -7,6 +7,21 @@ exports.authenticateToken = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const client_1 = require("@prisma/client");
 const prisma = new client_1.PrismaClient();
+// declare global {
+//   namespace Express {
+//     interface Request {
+//       user?: {
+//         id: number;
+//         email: string | null;
+//         role: string;
+//         name: string | null;
+//         avatar: string | null;
+//         provider: string;
+//         solanaPublicKey: string | null;
+//       };
+//     }
+//   }
+// }
 const authenticateToken = async (req, res, next) => {
     try {
         const token = req.cookies.token || req.headers.authorization?.replace("Bearer ", "");
