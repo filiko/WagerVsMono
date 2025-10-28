@@ -14,7 +14,7 @@ export function Sidebar() {
   const [buyTokensOpen, setBuyTokensOpen] = React.useState(false);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const pathname = usePathname();
-  const { walletInfo, loading, refreshBalances } = useWalletBalance();
+  const { balances, loading, refreshBalances } = useWalletBalance();
 
   const handlePurchaseComplete = React.useCallback(async () => {
     setIsRefreshing(true);
@@ -49,7 +49,7 @@ export function Sidebar() {
               >
                 {loading || isRefreshing
                   ? "..."
-                  : walletInfo?.balances?.vs?.toFixed(0) || "0"}
+                  : "10,000"}
               </span>
             </div>
             <Button

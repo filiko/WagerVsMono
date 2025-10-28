@@ -210,7 +210,7 @@ export function BuyTokensModal({
     return ["25", "50", "100", "200"]; // Stablecoins
   }, [selectedCurrency]);
 
-  const currentBalance = wallet.connected 
+  const currentBalance = wallet.connected && wallet.chain
     ? balances[wallet.chain]?.balances?.[selectedCurrency.toLowerCase()] || 0
     : 0;
 
